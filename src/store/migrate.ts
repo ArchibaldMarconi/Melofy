@@ -1,0 +1,67 @@
+// Migrations de l'état sauvegardé : une mise à jour de l'appli ne doit jamais faire perdre de progression.
+// Chaque version décrit ce qui change ; `migrate` applique toutes les étapes depuis la version sauvegardée.
+// Règle pour les devs : tout renommage d'identifiant ou de champ = une nouvelle version ici + un test.
+
+export const STORE_VERSION = 5;
+
+/** identifiants d'exercices renommés */
+export const RENAMED_TEMPLATES: Record<string, string> = {
+  'TH-2-02': 'TH-1-05', // « Tons et demi-tons » passé au palier 1 (gamme de do)
+};
+
+import type { CompetenceState } from '../content/types';
+import { lessonsFromCompetences } from '../engine/cursus';
+
+type AnyState = Record<string, unknown>;
+
+const renameKeys = (obj: unknown) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) out[RENAMED_TEMPLATES[k] ?? k] = v;
+  return out;
+};
+
+export function migrate(persisted: unknown, fromVersion: number): AnyState {
+  const s: AnyState = { ...((persisted as AnyState) ?? {}) };
+  if (fromVersion < 1) {
+    // v0 → v1 : champs ajoutés au fil des sprints, avec leurs valeurs par défaut
+    s.levels ??= {};
+    s.avgTimeS ??= {};
+    s.seenPoints ??= [];
+    s.onboarded ??= true; // un ancien utilisateur a forcément déjà passé l'accueil
+    s.placementPending ??= false;
+  }
+  if (fromVersion < 2) {
+    // v1 → v2 : exercices renommés (niveaux et temps mesurés suivent l'exercice)
+    s.levels = renameKeys(s.levels);
+    s.avgTimeS = renameKeys(s.avgTimeS);
+  }
+  if (fromVersion < 3) {
+    // v2 → v3 : écran « Nouveautés » ; un utilisateur existant n'a encore rien vu
+    s.seenRelease ??= '0.9.0';
+  }
+  if (fromVersion < 4) {
+    // v3 → v4 (0.20.0) : le cursus. Les leçons déjà faites restent vues et validées ; celles dont toutes les notions
+    // sont acquises sont validées et confirmées d'office ; celles déjà pratiquées sont vues. Rien n'est perdu.
+    const done = (s.deepLessonsDone as string[] | undefined) ?? [];
+    const fromComps = lessonsFromCompetences((s.competences ?? {}) as Record<string, CompetenceState>);
+    s.deepLessonsSeen = [...new Set([...done, ...fromComps.seen])];
+    s.deepLessonsDone = [...new Set([...done, ...fromComps.acquired])];
+    s.deepLessonsConfirmed = [...fromComps.acquired];
+    s.deepLessonsDoneDay ??= {};
+    s.practiceDays ??= {};
+    s.techProgress ??= {};
+  }
+  if (fromVersion < 5) {
+    // v4 → v5 (0.23.0) : la leçon « modes » (14) a été entièrement réécrite en présentation, suivie d'une leçon
+    // par mode. L'ancienne lecture ne vaut plus : la leçon redevient à découvrir, et ses exercices attendent qu'elle soit vue.
+    const drop = (k: string) => { if (Array.isArray(s[k])) s[k] = (s[k] as string[]).filter((x) => x !== 'modes'); };
+    drop('deepLessonsSeen'); drop('deepLessonsDone'); drop('deepLessonsConfirmed');
+    if (s.deepLessonsDoneDay && typeof s.deepLessonsDoneDay === 'object') {
+      const d = { ...(s.deepLessonsDoneDay as Record<string, string>) };
+      delete d.modes;
+      s.deepLessonsDoneDay = d;
+    }
+  }
+  return s;
+}

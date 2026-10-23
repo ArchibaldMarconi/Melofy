@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "melofy-expo",
-    "slug": "melofy-expo",
-    "version": "1.0.0",
+    "name": "Melofy",
+    "slug": "melofy",
+    "version": "0.24.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.melofy.beta"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +21,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Melofy écoute ton instrument pour vérifier ce que tu joues et pour l'accordeur."
+        }
+      ]
+    ]
   }
 }
