@@ -122,7 +122,7 @@ describe('workout en 5 parties', () => {
     expect([...parts]).toEqual(expect.arrayContaining(['revision', 'oreille', 'mapping', 'perroquet']));
     const earIds = plan.items.filter((x) => x.wpart === 'oreille').map((x) => x.templateId);
     expect(earIds.some((id) => id === 'OR-1-01' || id === 'OR-1-15')).toBe(true);
-    for (const x of plan.items.filter((y) => y.wpart !== 'revision')) {
+    for (const x of plan.items.filter((y) => y.wpart !== 'revision' && y.wpart !== 'creer')) {
       const e = LADDERS[x.wpart as 'oreille'].find((y) => y.templateId === x.templateId)!;
       expect(e.lesson).toBe('fondations');
     }
@@ -140,6 +140,7 @@ describe('workout en 5 parties', () => {
         const ofSeenLesson = DEEP_LESSONS.some((l) => seen.includes(l.id) && [...l.practice, l.validation, ...(l.guitarValidation ? [l.guitarValidation] : [])].some((y) => y.templateId === x.templateId));
         if (x.wpart === 'revision') expect(templateAvailable(t, p).ok || ofSeenLesson).toBe(true);
         else if (x.wpart === 'technique') expect(x.tech).toBeDefined();
+        else if (x.wpart === 'creer') expect(templateAvailable(t, p).ok).toBe(true);
         else expect(LADDERS[x.wpart as 'oreille'].some((e) => e.templateId === x.templateId && seen.includes(e.lesson))).toBe(true);
       }
     }
@@ -162,7 +163,8 @@ describe('workout en 5 parties', () => {
     const all = DEEP_LESSONS.slice(0, 11).map((l) => l.id);
     for (const minutes of [10, 15, 20]) {
       const plan = wk(prog(all, all), { minutes, seed: minutes });
-      const t = (part: string) => plan.items.filter((x) => x.wpart === part).reduce((a, x) => a + (x.estS ?? 0), 0);
+      // « créer » prend son temps sur la part de « rejouer » : on les compte ensemble
+      const t = (part: string) => plan.items.filter((x) => x.wpart === part || (part === 'perroquet' && x.wpart === 'creer')).reduce((a, x) => a + (x.estS ?? 0), 0);
       const total = minutes * 60;
       expect(plan.estimatedS).toBeGreaterThan(total * 0.75);
       expect(plan.estimatedS).toBeLessThan(total * 1.35);

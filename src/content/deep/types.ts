@@ -46,6 +46,18 @@ export interface DeepScreen {
   only?: Instrument;
 }
 
+/**
+ * « À toi d'essayer » : une étape où l'élève cherche avec ses mains AVANT qu'on lui donne le nom (le son, puis les
+ * doigts, puis le nom). Rien n'est noté : on peut se tromper, réécouter, ou demander « Montre-moi ».
+ *  - play : jouer une suite de notes (comparée en noms de notes, à n'importe quelle octave), ou explorer librement ;
+ *  - build : choisir les notes d'un accord ;
+ *  - tap : taper un rythme avec le clic.
+ */
+export type LessonTry =
+  | { kind: 'play'; prompt: string; guitarPrompt?: string; target?: number[]; guitarTarget?: number[]; drone?: number; allowed?: number[]; minNotes?: number; success: string }
+  | { kind: 'build'; prompt: string; guitarPrompt?: string; target: number[]; success: string }
+  | { kind: 'tap'; prompt: string; onsets: number[]; tempo: number; perBar: number; success: string };
+
 export interface DeepPractice {
   domain: Domain | 'chant' | 'audiation' | 'lecture';
   label: string;

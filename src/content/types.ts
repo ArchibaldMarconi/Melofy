@@ -261,10 +261,10 @@ export interface CompetenceState {
 export type SessionBlock = 'echauffement' | 'remediation' | 'revision' | 'nouveaute' | 'impro' | 'reinjection'
   | 'routine_rythme' | 'routine_intervalles' | 'routine_audiation' | 'routine_repiquage' | 'routine_oreille' | 'routine_perroquet' | 'routine_noms' | 'routine_instrument' | 'routine_lecture' | 'consolidation'
   // workout 0.20.0
-  | 'confirmation' | 'application' | 'oreille' | 'mapping' | 'perroquet' | 'technique';
+  | 'confirmation' | 'application' | 'oreille' | 'mapping' | 'perroquet' | 'technique' | 'creer';
 
-/** les 5 parties du workout (0.20.0) */
-export type WorkoutPart = 'revision' | 'oreille' | 'mapping' | 'perroquet' | 'technique';
+/** les parties de la séance : échauffement (technique), révision, entendre, trouver, rejouer, créer */
+export type WorkoutPart = 'revision' | 'oreille' | 'mapping' | 'perroquet' | 'technique' | 'creer';
 
 export interface PlanItem {
   templateId: string;

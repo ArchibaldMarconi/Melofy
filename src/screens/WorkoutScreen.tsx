@@ -108,6 +108,7 @@ export function WorkoutScreen() {
           </View>
         ) : canStart ? (
           <View style={styles.hero}>
+            {plan.theme && plan.theme.key !== 'auto' ? <Text style={styles.theme}>Tonalité du jour : {plan.theme.label}</Text> : null}
             <Pressable onPress={onStart} disabled={plan.items.length === 0} accessibilityRole="button" accessibilityLabel="Commencer la séance"
               style={({ pressed }) => [styles.heroBtn, styles.heroBtnBig, pressed && { opacity: 0.85 }, plan.items.length === 0 && { opacity: 0.5 }]}>
               <Text style={[styles.heroBtnText, { fontSize: 24 }]}>▶  Commencer</Text>
@@ -257,6 +258,7 @@ const styles = StyleSheet.create({
   heroBtnBig: { minHeight: 84 },
   heroBtnText: { color: colors.ink, fontSize: 19, fontWeight: '900' },
   heroLine: { color: colors.onPrimarySoft, fontSize: 13, textAlign: 'center' },
+  theme: { color: colors.onPrimary, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   card: { backgroundColor: colors.card, borderRadius: 18, padding: 16, gap: 12 },
   newLesson: { backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 4, borderWidth: 2, borderColor: '#E0457B' },
   kicker: { color: colors.accent, fontWeight: '900', fontSize: 13 },

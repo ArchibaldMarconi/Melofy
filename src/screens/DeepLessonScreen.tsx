@@ -1,4 +1,5 @@
-// Leçon approfondie : écouter d'abord, comprendre (écrans illustrés, un à la fois), pratiquer par domaine, valider.
+// Leçon : écouter d'abord, essayer avec les mains (« À toi d'essayer », avant qu'on donne le nom), comprendre
+// (écrans illustrés et jouables, un à la fois), pratiquer, valider. Qui sait déjà peut passer directement la validation.
 import React, { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +13,8 @@ import { audio } from '../audio/RNAudioEngine';
 import { newSeed } from '../engine/rng';
 import { ExercisePlayer } from '../exercise/ExercisePlayer';
 import { DeepIllustration } from '../components/DeepIllustration';
+import { TryPanel } from '../components/TryPanel';
+import { triesFor } from '../content/deep/tries';
 import { Button } from '../components/Button';
 import { XP } from '../engine/xp';
 import { lessonProgressOf, useUserStore } from '../store/useUserStore';
@@ -39,6 +42,10 @@ export function DeepLessonScreen() {
   const progress = lessonProgressOf(storeAll);
   const [phase, setPhase] = useState<Phase>({ kind: 'intro' });
   const [guess, setGuess] = useState<'A' | 'B' | null>(null);
+  /** étapes « À toi d'essayer » déjà faites (par écran) : le nom et l'explication s'affichent ensuite */
+  const [tried, setTried] = useState<Record<number, number>>({});
+  /** « je connais déjà » : on passe directement à la validation */
+  const [testOut, setTestOut] = useState(false);
   // une graine fixe par exercice (sinon il changerait à chaque rafraîchissement) ; renouvelée pour réessayer
   const seeds = useRef<Record<string, number>>({});
   const seedFor = (key: string) => (seeds.current[key] ??= newSeed());
@@ -71,7 +78,7 @@ export function DeepLessonScreen() {
       <SafeAreaView style={styles.screen}>
         {header}
         <ScrollView contentContainerStyle={styles.pad}>
-          <Text style={[styles.kicker, { color: accent }]}>Leçon {lesson.number} · palier {lesson.palier}</Text>
+          <Text style={[styles.kicker, { color: accent }]}>Leçon {lesson.number}</Text>
           <Text style={type.display}>{lesson.title}</Text>
           <Text style={type.body}>Cette leçon s'appuie sur {missing.length > 1 ? 'des leçons' : 'une leçon'} que tu n'as pas encore validée{missing.length > 1 ? 's' : ''} :</Text>
           {missing.map((l) => (
@@ -90,7 +97,7 @@ export function DeepLessonScreen() {
       <SafeAreaView style={styles.screen}>
         {header}
         <ScrollView contentContainerStyle={styles.pad}>
-          <Text style={[styles.kicker, { color: accent }]}>Leçon approfondie {lesson.number} · palier {lesson.palier}</Text>
+          <Text style={[styles.kicker, { color: accent }]}>Leçon {lesson.number}</Text>
           <Text style={type.display}>{lesson.title}</Text>
           <Text style={type.body}>{lesson.why}</Text>
           {lesson.provisional ? <Text style={type.small}>Version courte : l'essentiel pour commencer à pratiquer. La leçon approfondie arrive dans une prochaine version.</Text> : null}
@@ -117,6 +124,9 @@ export function DeepLessonScreen() {
           ) : null}
           <Button color={accent} label="Commencer la leçon" disabled={!!d && guess === null} onPress={() => setPhase({ kind: 'screen', i: 0 })} />
           {d && guess === null ? <Button variant="texte" color={colors.inkSoft} label="Passer l'écoute" onPress={() => setPhase({ kind: 'screen', i: 0 })} /> : null}
+          {!progress.done.includes(lessonAll.id) ? (
+            <Button variant="texte" color={colors.inkSoft} label="Je connais déjà : passer la validation" onPress={() => { setTestOut(true); setPhase({ kind: 'validation' }); }} />
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     );
@@ -131,13 +141,28 @@ export function DeepLessonScreen() {
     const keep = g && s.guitarKeep ? s.guitarKeep : s.keep;
     const sound = g && s.guitarAudio ? s.guitarAudio : s.audio;
     const last = phase.i === lesson.screens.length - 1;
+    // « À toi d'essayer » : d'abord chercher avec les mains ; le nom (l'écran) vient ensuite
+    const tries = triesFor(lessonAll.id, s.title);
+    const pending = tries[tried[phase.i] ?? 0];
+    if (pending) {
+      return (
+        <SafeAreaView style={styles.screen}>
+          {header}
+          <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.kicker, { color: accent }]}>{phase.i + 1} / {lesson.screens.length}</Text>
+            <TryPanel key={`${phase.i}-${tried[phase.i] ?? 0}`} t={pending} accent={accent} onDone={() => setTried((x) => ({ ...x, [phase.i]: (x[phase.i] ?? 0) + 1 }))} />
+            <Button variant="texte" color={colors.inkSoft} label="← Précédent" onPress={() => setPhase(phase.i ? { kind: 'screen', i: phase.i - 1 } : { kind: 'intro' })} />
+          </ScrollView>
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.screen}>
         {header}
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={[styles.kicker, { color: accent }]}>{phase.i + 1} / {lesson.screens.length}</Text>
           <Text style={type.title}>{s.title}</Text>
-          {ill ? <DeepIllustration ill={ill} accent={accent} /> : null}
+          {ill ? <DeepIllustration ill={ill} accent={accent} onNote={(m) => { audio.init().then(() => audio.playNote(m, instrument)); }} /> : null}
           {sound ? <Button variant="contour" color={accent} label={`▶ ${sound.label}`} onPress={() => play(sound.notes, sound.tempo)} /> : null}
           {paragraphs.map((p, k) => <Text key={k} style={[type.body, styles.para]}>{p}</Text>)}
           {keep ? (
@@ -208,6 +233,8 @@ export function DeepLessonScreen() {
     return runExercise(validation.templateId, validation.params, 'validation', `Validation · ${validation.criterion}`, accent,
       (ok) => {
         const first = ok && !(useUserStore.getState().deepLessonsDone ?? []).includes(lesson.id);
+        // passée directement (« je connais déjà ») : la leçon compte aussi comme vue, ses exercices entrent dans la séance
+        if (ok && testOut) markSeen(lessonAll.id, lessonAll.concepts ?? [lessonAll.conceptId]);
         if (ok) markDone(lesson.id, [validation.templateId, ...practice.map((x) => x.templateId)]);
         setPhase({ kind: 'result', ok, xp: first ? XP.lessonDone : 0 });
       });
@@ -223,14 +250,15 @@ export function DeepLessonScreen() {
         <Text style={type.display}>{phase.ok ? 'Leçon validée ✓' : 'Presque'}</Text>
         {phase.xp ? <Text style={[styles.xp, { color: accent }]}>+ {phase.xp} XP</Text> : null}
         <Text style={type.body}>{phase.ok
-          ? `« ${lesson.title} » est validée. Ses exercices entrent dans ta séance du jour${children.length ? ` et ${children.length > 1 ? 'ces leçons s\'ouvrent' : 'cette leçon s\'ouvre'} : ${children.map((c) => `${c.number}. ${c.title}`).join(' · ')}` : ''}. Dans quelques jours, une confirmation dans ta séance la validera définitivement.`
+          ? `Ses exercices entrent dans ta séance du jour${children.length ? `. ${children.length > 1 ? 'Nouvelles leçons' : 'Nouvelle leçon'} : ${children.map((c) => c.title).join(' · ')}` : ''}.`
+          : testOut ? `La validation demande ${validation.criterion}. Pas grave : la leçon t'attend, elle va vite quand on connaît déjà.`
           : `La validation demande ${validation.criterion}. Relis l'écran qui t'a posé problème, puis réessaie : c'est normal d'y revenir.`}</Text>
         {phase.ok ? (
           <Button color={accent} label="Terminer" onPress={close} />
         ) : (
           <>
             <Button color={accent} label="Réessayer la validation" onPress={() => { delete seeds.current.validation; setPhase({ kind: 'validation' }); }} />
-            <Button variant="contour" color={accent} label="Revoir la leçon" onPress={() => setPhase({ kind: 'screen', i: 0 })} />
+            <Button variant="contour" color={accent} label={testOut ? 'Faire la leçon' : 'Revoir la leçon'} onPress={() => { setTestOut(false); setPhase({ kind: 'screen', i: 0 }); }} />
             <Button variant="texte" color={colors.inkSoft} label="Plus tard" onPress={close} />
           </>
         )}

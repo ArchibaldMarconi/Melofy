@@ -1,8 +1,11 @@
-// Composition du workout (0.20.0), en 5 parties, à partir des leçons vues :
-//  1. Révision et validation (40 %) : révisions SRS dues, application des leçons pas encore confirmées,
+// La séance du jour, à partir des leçons vues, dans l'ordre d'une vraie séance de musicien :
+//  0. Échauffement (option, + 5 ou + 10 min) : la routine technique de la gamme du moment (engine/technique) ;
+//  1. Révision (40 %) : révisions dues (une carte par compétence), pratique des leçons pas encore consolidées,
 //     puis la confirmation d'une leçon quand elle est prête ;
-//  2. Ear training (20 %), 3. Mapping (15 %), 4. Perroquet (25 %) : échelles de niveau par leçon (content/ladders) ;
-//  5. Technique (option, + 5 ou + 10 min) : la routine de la gamme du moment (engine/technique).
+//  2. Entendre (20 %), 3. Trouver (15 %), 4. Rejouer (25 %) : échelles de niveau par leçon (content/ladders),
+//     toutes dans la TONALITÉ DU JOUR quand l'élève connaît les armures : l'oreille, la théorie et les doigts
+//     travaillent la même matière, ce qui se transfère bien mieux au vrai jeu que des exercices sans lien ;
+//  5. Créer (environ une minute) : improviser sur un accompagnement, avec une consigne simple. Toujours un moment de musique.
 // Aucun exercice n'entre si sa leçon n'a pas été vue. La situation de l'élève (instrument, voix) décide
 // de la façon de répondre : au micro sur le vrai instrument, ou à l'écran ; sans voix, pas d'exercice chanté.
 import type { CompetenceState, ExerciseTemplate, Instrument, Params, PlanItem, WorkoutPart } from '../content/types';
@@ -12,22 +15,38 @@ import { mulberry32, pick, type Rng } from './rng';
 import { generate } from './generators';
 import { estimateSeconds } from './duration';
 import { lessonSeen, practiceOf, templateAvailable, type LessonProgress } from './cursus';
+import { KEY_LABEL, VARIED_KEYS } from './music';
 import { currentTechScale, techniquePicks } from './technique';
 import { partOf } from './balance';
 import { dueOfTemplate, lastReviewOfTemplate, practicedTemplate } from './srs';
 
-export const PART_SHARES: Record<Exclude<WorkoutPart, 'technique'>, number> = { revision: 0.4, oreille: 0.2, mapping: 0.15, perroquet: 0.25 };
-export const PART_ORDER: WorkoutPart[] = ['revision', 'oreille', 'mapping', 'perroquet', 'technique'];
+export const PART_SHARES: Record<Exclude<WorkoutPart, 'technique' | 'creer'>, number> = { revision: 0.4, oreille: 0.2, mapping: 0.15, perroquet: 0.25 };
+export const PART_ORDER: WorkoutPart[] = ['technique', 'revision', 'oreille', 'mapping', 'perroquet', 'creer'];
 export const PART_LABEL: Record<WorkoutPart, string> = {
-  revision: 'Révision et validation', oreille: 'Ear training', mapping: 'Mapping', perroquet: 'Perroquet', technique: 'Technique',
+  technique: 'Échauffement', revision: 'Révision', oreille: 'Entendre', mapping: 'Trouver', perroquet: 'Rejouer', creer: 'Créer',
 };
 export const PART_LINE: Record<WorkoutPart, string> = {
-  revision: 'Les révisions dues, la pratique de tes leçons, puis leur validation.',
-  oreille: 'Entendre : au niveau des leçons que tu as vues.',
-  mapping: 'L\'appli affiche une note, un accord ou une gamme : tu la joues.',
-  perroquet: 'L\'appli joue, tu rejoues : de l\'oreille aux doigts.',
   technique: 'La routine de ta gamme du moment, au métronome.',
+  revision: 'Ce qui doit revenir aujourd\'hui, et la pratique de tes leçons.',
+  oreille: 'Entendre, dans la tonalité du jour.',
+  mapping: 'L\'appli montre, tu trouves sur ton instrument.',
+  perroquet: 'L\'appli joue, tu rejoues : de l\'oreille aux doigts.',
+  creer: 'Improviser sur un accompagnement, avec une consigne.',
 };
+
+/** exercices de création, du plus avancé au plus simple */
+const CREATE_TEMPLATES = ['IM-5-02', 'IM-4-02', 'IM-3-02', 'IM-2-04', 'IM-2-03', 'IM-2-02', 'IM-1-02', 'IM-1-03'];
+
+/**
+ * Tonalité du jour : la tonalité par défaut de l'instrument tant que les armures ne sont pas vues ; ensuite, une
+ * tonalité qui change chaque jour (do, sol, fa, ré), puis toutes celles des exercices une fois le cycle des quintes vu.
+ */
+export function themeOf(p: LessonProgress, instrument: Instrument, seed: number): { key: string; label: string } {
+  const keys = lessonSeen('quintes', p) ? VARIED_KEYS : lessonSeen('armure', p) ? ['C', 'G', 'F', 'D'] : null;
+  if (!keys) return { key: 'auto', label: `${instrument === 'guitare' ? 'la' : 'do'} majeur` };
+  const key = keys[seed % keys.length];
+  return { key, label: `${KEY_LABEL[key]} majeur` };
+}
 
 export interface WorkoutInput {
   templates: ExerciseTemplate[];
@@ -51,6 +70,8 @@ export interface WorkoutPlan {
   estimatedS: number;
   /** aucune leçon vue : il faut commencer par une leçon */
   needsLesson: boolean;
+  /** tonalité du jour (entendre, trouver, rejouer, créer) */
+  theme?: { key: string; label: string };
 }
 
 const LADDER_TEMPLATES = new Set(Object.values(LADDERS).flat().map((e) => e.templateId));
@@ -87,6 +108,9 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   const dueOf = (t: ExerciseTemplate) => dueOfTemplate(t, inp.competences, inp.now);
   const available = (t: ExerciseTemplate) => templateAvailable(t, p).ok && fits(t);
   const lessonIndex = (id: string) => DEEP_LESSONS.findIndex((l) => l.id === id);
+  const theme = themeOf(p, inp.instrument, inp.seed);
+  // la tonalité du jour, sauf quand l'échelle de la leçon fixe déjà la sienne (contenu de la leçon)
+  const themed = (params?: Params): Params | undefined => (theme.key === 'auto' || params?.tonalite !== undefined || params?.tonalites !== undefined ? params : { ...(params ?? {}), tonalite: theme.key });
 
   // ---------- 1. Révision et validation ----------
   const rev: PlanItem[] = [];
@@ -125,8 +149,16 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   fill(revBudget, rev);
 
   // ---------- 2 à 4. Ear training, mapping, perroquet ----------
+  // ---------- 5. Créer : environ une minute de musique libre, avec une consigne (pris sur le temps de « rejouer ») ----------
+  const createT = CREATE_TEMPLATES.map((id) => byId.get(id)).filter((t): t is ExerciseTemplate => !!t && available(t)).slice(0, 2);
+  const create: PlanItem[] = [];
+  if (createT.length) {
+    const t = createT[inp.seed % createT.length];
+    create.push(take(make(t, 'creer', 'creer', themed(t.generator === 'free_play' ? { duree_s: 60 } : undefined))));
+  }
+
   const ladderPart = (part: LadderPart): PlanItem[] => {
-    const budget = total * PART_SHARES[part];
+    const budget = total * PART_SHARES[part] - (part === 'perroquet' ? sum(create) : 0);
     const entries = LADDERS[part]
       .filter((e) => lessonSeen(e.lesson, p) || p.unlockAll)
       .map((e) => ({ e, t: byId.get(e.templateId) as ExerciseTemplate }))
@@ -145,7 +177,7 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
       for (const x of order) {
         if (sum(out) >= budget * 0.85) break;
         if (round === 1 && lessonIndex(x.e.lesson) !== newest && fresh.length) continue;
-        const it = make(x.t, part, part, x.e.params);
+        const it = make(x.t, part, part, themed(x.e.params));
         if (sum(out) + (it.estS ?? 0) > budget * 1.35 && out.length) continue;
         out.push(take(it));
       }
@@ -157,7 +189,7 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   const map = ladderPart('mapping');
   const echo = ladderPart('perroquet');
   // une partie sans exercice encore (ex. pas de mapping au tout début) : son temps revient à la révision
-  const spare = total - sum(rev) - (confirmation?.estS ?? 0) - sum(ear) - sum(map) - sum(echo);
+  const spare = total - sum(rev) - (confirmation?.estS ?? 0) - sum(ear) - sum(map) - sum(echo) - sum(create);
   if (spare > 45) fill(revBudget + spare, rev);
 
   // ---------- 5. Technique (option) ----------
@@ -175,12 +207,12 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
     }
   }
 
-  // assemblage : la révision entrelacée, la confirmation en fin de partie 1 (« jusqu'à la validation »)
+  // assemblage : l'échauffement, la révision entrelacée (la confirmation à sa fin), entendre, trouver, rejouer, créer
   const items = [
-    ...interleave(rev, inp.templates), ...(confirmation ? [confirmation] : []),
-    ...interleave(ear, inp.templates), ...map, ...interleave(echo, inp.templates), ...tech,
+    ...tech, ...interleave(rev, inp.templates), ...(confirmation ? [confirmation] : []),
+    ...interleave(ear, inp.templates), ...map, ...interleave(echo, inp.templates), ...create,
   ];
-  return { items, totalS: total + (inp.techniqueMinutes ?? 0) * 60, estimatedS: sum(items), needsLesson: false };
+  return { items, totalS: total + (inp.techniqueMinutes ?? 0) * 60, estimatedS: sum(items), needsLesson: false, theme };
 }
 
 /** jamais plus de 2 exercices du même domaine d'affilée (l'attention retombe sur une longue série identique) */

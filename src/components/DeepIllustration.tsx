@@ -10,12 +10,13 @@ import { TrebleClef } from './TrebleClef';
 
 const W = 320;
 
-export function DeepIllustration({ ill, accent }: { ill: Illustration; accent: string }) {
+/** `onNote` : les claviers et manches dessinés deviennent jouables (toucher une touche ou une case la fait sonner) */
+export function DeepIllustration({ ill, accent, onNote }: { ill: Illustration; accent: string; onNote?: (midi: number) => void }) {
   switch (ill.kind) {
     case 'waves': return <Waves accent={accent} />;
     case 'pitchLadder': return <PitchLadder accent={accent} />;
-    case 'keyboard': return <Keyboard {...ill} accent={accent} />;
-    case 'fretboard': return <FretDiagram {...ill} accent={accent} />;
+    case 'keyboard': return <Keyboard {...ill} accent={accent} onNote={onNote} />;
+    case 'fretboard': return <FretDiagram {...ill} accent={accent} onNote={onNote} />;
     case 'steps': return <Steps {...ill} accent={accent} />;
     case 'ladder': return <Ladder {...ill} accent={accent} />;
     case 'pulseGrid': return <PulseGrid {...ill} accent={accent} />;
@@ -81,7 +82,7 @@ function PitchLadder({ accent }: { accent: string }) {
 }
 
 // ---------- clavier ----------
-function Keyboard({ from, to, names, marks = [], arcs = [], accent }: Extract<Illustration, { kind: 'keyboard' }> & { accent: string }) {
+function Keyboard({ from, to, names, marks = [], arcs = [], accent, onNote }: Extract<Illustration, { kind: 'keyboard' }> & { accent: string; onNote?: (midi: number) => void }) {
   const whites: number[] = [];
   for (let m = from; m <= to; m++) if (isNatural(m)) whites.push(m);
   // touches plus larges quand il y en a peu : le clavier occupe la largeur, sans devenir géant
@@ -116,7 +117,7 @@ function Keyboard({ from, to, names, marks = [], arcs = [], accent }: Extract<Il
           const mk = markOf(m);
           return (
             <React.Fragment key={m}>
-              <Rect x={i * WK + 1} y={top} width={WK - 2} height={110} rx={3} fill={mk ? (mk.color ?? accent) : '#FBF8F2'} stroke="#2A2340" strokeWidth={1} />
+              <Rect x={i * WK + 1} y={top} width={WK - 2} height={110} rx={3} fill={mk ? (mk.color ?? accent) : '#FBF8F2'} stroke="#2A2340" strokeWidth={1} onPress={onNote ? () => onNote(m) : undefined} />
               {mk?.label && mk.label.length > 3
                 ? <SvgText x={i * WK + WK / 2} y={top + 128} fontSize={12} fontWeight="900" fill={mk.color ?? accent} textAnchor="middle">{mk.label}</SvgText>
                 : names || mk?.label ? <SvgText x={i * WK + WK / 2} y={top + 100} fontSize={WK > 30 ? 13 : 11} fontWeight="800" fill={mk ? '#FFFFFF' : '#2A2340'} textAnchor="middle">{mk?.label ?? noteName(m).replace(/\d/, '')}</SvgText> : null}
@@ -127,7 +128,7 @@ function Keyboard({ from, to, names, marks = [], arcs = [], accent }: Extract<Il
           const mk = markOf(m);
           return (
             <React.Fragment key={m}>
-              <Rect x={xOf(m) - WK * 0.32} y={top} width={WK * 0.64} height={68} rx={2} fill={mk ? (mk.color ?? accent) : '#2A2340'} />
+              <Rect x={xOf(m) - WK * 0.32} y={top} width={WK * 0.64} height={68} rx={2} fill={mk ? (mk.color ?? accent) : '#2A2340'} onPress={onNote ? () => onNote(m) : undefined} />
               {mk?.label && mk.label.length > 3
                 ? <SvgText x={xOf(m)} y={top + 128} fontSize={12} fontWeight="900" fill={mk.color ?? accent} textAnchor="middle">{mk.label}</SvgText>
                 : mk?.label ? <SvgText x={xOf(m)} y={top + 60} fontSize={9} fontWeight="800" fill="#FFFFFF" textAnchor="middle">{mk.label}</SvgText> : null}
@@ -141,7 +142,8 @@ function Keyboard({ from, to, names, marks = [], arcs = [], accent }: Extract<Il
 }
 
 // ---------- manche ----------
-function FretDiagram({ frets, marks = [], arcs = [], accent }: Extract<Illustration, { kind: 'fretboard' }> & { accent: string }) {
+const OPEN_STRINGS = [40, 45, 50, 55, 59, 64];
+function FretDiagram({ frets, marks = [], arcs = [], accent, onNote }: Extract<Illustration, { kind: 'fretboard' }> & { accent: string; onNote?: (midi: number) => void }) {
   const cw = (W - 20) / (frets + 1);
   const sy = (s: number) => 22 + (5 - s) * 22; // corde aiguë en haut
   const cx = (f: number) => 10 + f * cw + cw / 2;
@@ -165,9 +167,12 @@ function FretDiagram({ frets, marks = [], arcs = [], accent }: Extract<Illustrat
             </React.Fragment>
           );
         })}
+        {onNote ? [0, 1, 2, 3, 4, 5].flatMap((st) => Array.from({ length: frets + 1 }, (_, f) => (
+          <Rect key={`${st}-${f}`} x={10 + f * cw} y={sy(st) - 11} width={cw} height={22} fill="transparent" onPress={() => onNote(OPEN_STRINGS[st] + f)} />
+        ))) : null}
         {marks.map((m, i) => (
           <React.Fragment key={i}>
-            <Circle cx={cx(m.fret)} cy={sy(m.string)} r={9} fill={m.color ?? accent} />
+            <Circle cx={cx(m.fret)} cy={sy(m.string)} r={9} fill={m.color ?? accent} onPress={onNote ? () => onNote(OPEN_STRINGS[m.string] + m.fret) : undefined} />
             {m.label ? <SvgText x={cx(m.fret)} y={sy(m.string) + 4} fontSize={10} fontWeight="900" fill="#FFFFFF" textAnchor="middle">{m.label}</SvgText> : null}
           </React.Fragment>
         ))}
