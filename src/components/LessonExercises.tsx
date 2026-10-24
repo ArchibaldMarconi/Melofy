@@ -11,6 +11,7 @@ import { CONCEPTS } from '../content/concepts';
 import { BOSSES, MECHANIC_GLYPH, TEMPLATES } from '../content/templates';
 import { DEEP_LESSONS, lessonOfConcept } from '../content/deep';
 import { isAcquired, medal, type Medal } from '../engine/fsrs';
+import { cardOf } from '../engine/srs';
 import { newSeed } from '../engine/rng';
 import { templateAvailable } from '../engine/cursus';
 import { lessonProgressOf, useUserStore } from '../store/useUserStore';
@@ -33,7 +34,7 @@ export function LessonExercises() {
   const [open, setOpen] = useState<string[]>(byDomain.length ? [byDomain[0].d] : []);
   const [more, setMore] = useState<string[]>([]);
   const [sheet, setSheet] = useState<ExerciseTemplate | null>(null);
-  const acquired = (t: ExerciseTemplate) => isAcquired(competences[`${t.concepts[0]}:${t.domain}`]);
+  const acquired = (t: ExerciseTemplate) => isAcquired(cardOf(t, competences));
 
   return (
     <View style={styles.box}>
@@ -74,7 +75,7 @@ export function LessonExercises() {
                       </View>
                       <View style={styles.notesRow}>
                         {list.map((t) => {
-                          const m = medal(competences[`${t.concepts[0]}:${t.domain}`]);
+                          const m = medal(cardOf(t, competences));
                           return (
                             <Pressable key={t.id} onPress={() => setSheet(t)} accessibilityLabel={t.title} style={styles.noteWrap}>
                               <View style={[styles.noteHead, { backgroundColor: acquired(t) ? color : colors.card, borderColor: MEDAL_COLOR[m] ?? color }]}>

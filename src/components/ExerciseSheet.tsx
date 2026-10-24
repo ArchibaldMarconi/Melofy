@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import type { ExerciseTemplate, ParamSpec, Params, ParamValue } from '../content/types';
 import { MECHANIC_LABEL } from '../content/templates';
 import { currentR, medal } from '../engine/fsrs';
+import { cardOf } from '../engine/srs';
 import { useUserStore } from '../store/useUserStore';
 import { colors, domainColor, domainLabel, type } from '../theme';
 import { Button } from './Button';
@@ -23,7 +24,7 @@ export function ExerciseSheet({ template: t, locked, onClose, onLaunch }: Props)
   const comps = useUserStore((s) => s.competences);
   if (!t) return null;
   const color = domainColor[t.domain];
-  const comp = comps[`${t.concepts[0]}:${t.domain}`];
+  const comp = cardOf(t, comps);
   const value = (k: string) => params[k] ?? t.params[k];
   const set = (k: string, v: ParamValue) => setParams((p) => ({ ...p, [k]: v }));
 

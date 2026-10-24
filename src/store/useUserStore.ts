@@ -2,18 +2,19 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { CompetenceState, DegreeItem, Domain, ErrorItem, ExerciseTemplate, InputMode, Instrument, Outcome, Rating } from '../content/types';
+import type { CompetenceState, DegreeItem, Domain, ExerciseTemplate, InputMode, Instrument, Outcome, Rating } from '../content/types';
 import { BADGES, type BadgeState } from '../content/badges';
-import { isMastered, newCompetence, review } from '../engine/fsrs';
+import { isMastered, review } from '../engine/fsrs';
 import { computeRating, computeXp, XP } from '../engine/xp';
-import { maxLevel } from '../engine/generators';
+import { maxDifficulty, maxLevel, staircase } from '../engine/difficulty';
+import { cardKeyOf, newSkillCard } from '../engine/srs';
+import type { SkillId } from '../content/skills';
 import { TEMPLATES } from '../content/templates';
 import { PAYWALL_ENABLED } from '../config';
 import { migrate, STORE_VERSION } from './migrate';
 import { validatePoints } from '../engine/points';
-import { recordIntervalAnswers, type IntervalStats } from '../engine/intervals';
 import { APP_VERSION } from '../version';
-import { lessonsFromCompetences, type LessonProgress } from '../engine/cursus';
+import { lessonsFromConcepts, type LessonProgress } from '../engine/cursus';
 import type { PlacementProfile } from '../content/placement';
 
 // clé identique à la version web (« melofy-user:<nom> ») : même format de sauvegarde
@@ -55,13 +56,12 @@ interface UserState {
   perfectSessions: number;
   premium: boolean;
   competences: Record<string, CompetenceState>;
-  /** niveau de difficulté adaptative atteint par exercice */
+  /** niveau de difficulté atteint par exercice (progression écrite, puis paliers sans plafond) */
   levels: Record<string, number>;
+  /** escalier : réussites nettes d'affilée au niveau en cours, par exercice */
+  levelRuns: Record<string, number>;
   /** temps moyen réellement passé par exercice (s), pour composer des séances à la bonne durée */
   avgTimeS: Record<string, number>;
-  /** suivi des intervalles (20 dernières réponses par intervalle et par sens) */
-  intervalStats: IntervalStats;
-  recordIntervals: (entries: { key: string; ok: boolean }[]) => void;
   /** XP de la pratique libre (onglet Pratique) : une journée de pratique compte dans la semaine */
   addPracticeXp: (xp: number) => void;
   seenConcepts: string[];
@@ -90,7 +90,6 @@ interface UserState {
   bossDone: string[];
   mechanicsDone: string[];
   carnet: CarnetEntry[];
-  confusions: { key: string; t: number }[];
   settings: Settings;
   inSessionStreak: number;
   onboarded: boolean;
@@ -106,11 +105,12 @@ interface UserState {
   /** valide les notions réussies au test de placement (note 2 : le SRS les revérifie vite) */
   /** placement par domaine : compétences (notion × domaine) validées ; les exercices concernés passent au niveau le plus difficile */
   placeOut: (pairs: { conceptId: string; domain: Domain }[]) => void;
+  /** pratique hors exercice (séries chronométrées « Solo ») : une révision de la compétence, si elle est due */
+  recordSkillPractice: (skill: SkillId, domain: Domain, success: boolean, precision: number) => void;
 
   recordResult: (t: ExerciseTemplate, o: Outcome, ctx: { inSession: boolean; transcription?: { tonic: number; items: DegreeItem[] } }) => ResultInfo;
   completeSession: (s: SessionSummary) => { streak: number; bonusXp: number; newBadges: string[] };
   completeBoss: (id: string) => string[];
-  markConceptSeen: (id: string) => void;
   setSettings: (s: Partial<Settings>) => void;
   setPremium: (v: boolean) => void;
   canStartWorkout: () => boolean;
@@ -120,7 +120,7 @@ interface UserState {
 
 const initial = {
   xpTotal: 0, xpByDay: {}, streak: 0, bestStreak: 0, freezes: 0, lastSessionDay: null, sessionsDone: 0, perfectSessions: 0,
-  premium: false, competences: {}, levels: {}, avgTimeS: {}, intervalStats: {}, seenConcepts: [], seenPoints: [], validatedPoints: [], deepLessonsDone: [], deepLessonsSeen: [], deepLessonsDoneDay: {}, deepLessonsConfirmed: [], practiceDays: {}, techProgress: {}, seenTemplates: [], badges: [], bossDone: [], mechanicsDone: [], carnet: [], confusions: [],
+  premium: false, competences: {}, levels: {}, levelRuns: {}, avgTimeS: {}, seenConcepts: [], seenPoints: [], validatedPoints: [], deepLessonsDone: [], deepLessonsSeen: [], deepLessonsDoneDay: {}, deepLessonsConfirmed: [], practiceDays: {}, techProgress: {}, seenTemplates: [], badges: [], bossDone: [], mechanicsDone: [], carnet: [],
   settings: { instrument: 'piano' as Instrument, inputPref: 'clavier' as InputMode, sessionMinutes: 10, latencyMs: 0, showNoteNames: false, unlockAll: false },
   inSessionStreak: 0,
   onboarded: false,
@@ -146,18 +146,15 @@ export const useUserStore = create<UserState>()(
         const s = get();
         const now = Date.now();
         const rating = computeRating(o, t.dureeS * 1000);
-        const domain: Domain = t.domain;
+        // une carte par compétence ; une 2e réussite dans les mêmes heures ne compte pas comme une révision de plus
         const comps = { ...s.competences };
-        let reviewAfterDays = 0;
-        let alreadyMastered = !ctx.inSession;
-        for (const cid of t.concepts) {
-          const key = `${cid}:${domain}`;
-          const prev = comps[key] ?? newCompetence(cid, domain);
-          if (prev.reps > 0) reviewAfterDays = Math.max(reviewAfterDays, (now - prev.lastReview) / DAY);
-          if (!isMastered(prev, now)) alreadyMastered = false;
-          // Hors session (pratique libre premium), on ne met à jour le SRS que si la compétence est due
-          if (ctx.inSession || prev.reps === 0 || prev.due <= now) comps[key] = review(prev, rating, now);
-        }
+        const key = cardKeyOf(t);
+        const prev = comps[key] ?? newSkillCard(key, t.domain);
+        const reviewAfterDays = prev.reps > 0 ? (now - prev.lastReview) / DAY : 0;
+        const alreadyMastered = !ctx.inSession && isMastered(prev, now);
+        const sameSitting = prev.reps > 0 && now - prev.lastReview < 4 * 3_600_000 && rating >= 2;
+        // hors séance (pratique libre), la carte n'est mise à jour que si elle est due
+        if (!sameSitting && (ctx.inSession || prev.reps === 0 || prev.due <= now)) comps[key] = review(prev, rating, now);
         let xp = computeXp(t, rating, o.helps, { reviewAfterDays, alreadyMasteredOutsideSrs: alreadyMastered });
         const streakRun = o.success && o.helps.length === 0 && o.attempt === 1 ? s.inSessionStreak + 1 : 0;
         if (streakRun > 0 && streakRun % 5 === 0) xp += XP.streak5Bonus;
@@ -167,15 +164,12 @@ export const useUserStore = create<UserState>()(
         const carnet = o.success && ctx.transcription && (t.domain === 'repiquage' || t.domain === 'impro')
           ? [...s.carnet, { id: `${t.id}-${o.seed}`, templateId: t.id, date: today, tonic: ctx.transcription.tonic, items: ctx.transcription.items }]
           : s.carnet;
-        const confusions = [...s.confusions, ...o.errors.filter((e: ErrorItem) => e.type === 'note_fausse' && e.expected && e.played).map((e) => ({ key: `${e.expected}>${e.played}`, t: now }))]
-          .filter((c) => now - c.t < 7 * DAY);
 
-        // Difficulté adaptative : on monte après une réussite nette, on redescend après un échec.
+        // escalier de difficulté : un cran plus dur après 3 réussites nettes, un cran plus facile après un échec
         const levels = s.levels ?? {};
-        const cur = levels[t.id] ?? 0;
-        const up = o.success && o.attempt === 1 && o.precision >= 0.9 && o.helps.length === 0 && cur < maxLevel(t);
-        const down = !o.success && cur > 0;
-        const level = cur + (up ? 1 : down ? -1 : 0);
+        const runs = s.levelRuns ?? {};
+        const step = staircase(levels[t.id] ?? 0, runs[t.id] ?? 0, o, maxDifficulty(t));
+        const level = step.level;
 
         const prevAvg = (s.avgTimeS ?? {})[t.id];
         const tS = Math.min(900, Math.max(5, o.timeMs / 1000));
@@ -192,13 +186,13 @@ export const useUserStore = create<UserState>()(
           practiceDays,
           validatedPoints,
           avgTimeS,
-          levels: { ...levels, [t.id]: level },
+          levels: { ...levels, [t.id]: level }, levelRuns: { ...runs, [t.id]: step.run },
           competences: comps, xpTotal: s.xpTotal + xp, xpByDay: { ...s.xpByDay, [today]: (s.xpByDay[today] ?? 0) + xp },
-          inSessionStreak: streakRun, mechanicsDone, carnet, confusions,
+          inSessionStreak: streakRun, mechanicsDone, carnet,
         });
         const newBadges = awardBadges(get());
         if (newBadges.length) set({ badges: [...get().badges, ...newBadges] });
-        return { rating, xp, newBadges, levelChange: up ? 1 : down ? -1 : 0, level };
+        return { rating, xp, newBadges, levelChange: step.change, level };
       },
 
       completeSession: (sum) => {
@@ -234,7 +228,6 @@ export const useUserStore = create<UserState>()(
 
       markTemplateSeen: (id) => { const s = get().seenTemplates ?? []; if (!s.includes(id)) set({ seenTemplates: [...s, id] }); },
       markPointSeen: (id) => { const s = get().seenPoints ?? []; if (!s.includes(id)) set({ seenPoints: [...s, id] }); },
-      markConceptSeen: (id) => { if (!get().seenConcepts.includes(id)) set({ seenConcepts: [...get().seenConcepts, id] }); },
       setSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       setPremium: (v) => set({ premium: v }),
       canStartWorkout: () => !PAYWALL_ENABLED || get().premium || get().lastSessionDay !== dayKey(),
@@ -278,7 +271,14 @@ export const useUserStore = create<UserState>()(
         set({ techProgress: { ...(s.techProgress ?? {}), [scale]: next } });
       },
       addPracticeXp: (xp) => { if (xp <= 0) return; const s = get(); const today = dayKey(); set({ xpTotal: s.xpTotal + xp, xpByDay: { ...s.xpByDay, [today]: (s.xpByDay[today] ?? 0) + xp } }); },
-      recordIntervals: (entries) => set({ intervalStats: recordIntervalAnswers(get().intervalStats ?? {}, entries) }),
+      recordSkillPractice: (skill, domain, success, precision) => {
+        const s = get();
+        const now = Date.now();
+        const prev = s.competences[skill] ?? newSkillCard(skill, domain);
+        if (prev.reps > 0 && prev.due > now) return;
+        const rating = !success ? 1 : precision >= 0.95 ? 4 : precision >= 0.85 ? 3 : 2;
+        set({ competences: { ...s.competences, [skill]: review(prev, rating, now) } });
+      },
       // un nouvel utilisateur n'a pas de « nouveautés » : tout est nouveau pour lui
       finishOnboarding: (instrument, profile) => set({ onboarded: true, placementPending: !!profile, placementProfile: profile ?? null, seenRelease: APP_VERSION, settings: { ...get().settings, instrument, inputPref: instrument === 'guitare' ? 'manche' : 'clavier' } }),
       setPlacementPending: (v) => set({ placementPending: v, ...(v ? {} : { placementProfile: null }) }),
@@ -289,18 +289,17 @@ export const useUserStore = create<UserState>()(
         const levels = { ...s.levels };
         const has = (cid: string, d: Domain) => pairs.some((p) => p.conceptId === cid && p.domain === d);
         for (const t of TEMPLATES) {
-          const cid = t.concepts[0];
-          if (!has(cid, t.domain)) continue;
-          const key = `${cid}:${t.domain}`;
-          const prev = comps[key] ?? newCompetence(cid, t.domain);
-          // note « difficile » : validé, mais à confirmer vite en révision
+          if (!has(t.concepts[0], t.domain)) continue;
+          const key = cardKeyOf(t);
+          const prev = comps[key] ?? newSkillCard(key, t.domain);
+          // note « difficile » : validée, mais à confirmer vite en révision
           if (prev.reps === 0) comps[key] = review(prev, 2, now);
-          // domaine fort : l'exercice démarre à son niveau le plus difficile (du fil à retordre)
-          if (t.progression?.length) levels[t.id] = Math.max(levels[t.id] ?? 0, t.progression.length - 1);
+          // domaine fort : l'exercice démarre à la fin de sa progression écrite (les paliers sans plafond restent à gagner)
+          levels[t.id] = Math.max(levels[t.id] ?? 0, maxLevel(t));
         }
         const conceptIds = [...new Set(pairs.map((p) => p.conceptId))];
         // le placement valide aussi les leçons dont toutes les notions sont réussies : un musicien confirmé ne refait pas tout
-        const fromComps = lessonsFromCompetences(comps);
+        const fromComps = lessonsFromConcepts(new Set(conceptIds));
         set({
           competences: comps, levels, seenConcepts: [...new Set([...s.seenConcepts, ...conceptIds])], placementPending: false, placementProfile: null,
           deepLessonsSeen: [...new Set([...(s.deepLessonsSeen ?? []), ...fromComps.seen])],

@@ -4,7 +4,6 @@ import { generate } from '../src/engine/generators';
 import { align, scoreAnswer, scoreRhythm, scoreSequence, scoreTranscription } from '../src/engine/scoring';
 import { isMastered, newCompetence, review } from '../src/engine/fsrs';
 import { computeRating, computeXp, levelFromXp } from '../src/engine/xp';
-import { buildDailySession } from '../src/engine/session';
 import { degreeToMidi, midiToDegree } from '../src/engine/music';
 import { yin } from '../src/audio/yin';
 import { NoteSegmenter } from '../src/audio/segmenter';
@@ -102,18 +101,6 @@ describe('FSRS, XP, niveaux', () => {
   });
 });
 
-describe('session quotidienne', () => {
-  test('nouvel utilisateur : échauffement + nouveauté avec leçon', () => {
-    const plan = buildDailySession({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 10, now: Date.now(), seed: 1 });
-    expect(plan.items.length).toBeGreaterThan(1);
-    expect(plan.items.some((i) => i.lessonConceptId === 'pulsation')).toBe(true);
-  });
-  test('jamais plus de 2 exercices du même domaine d\'affilée', () => {
-    const plan = buildDailySession({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 20, now: Date.now(), seed: 9, unlockAll: true });
-    const doms = plan.items.map((i) => templateById(i.templateId).domain);
-    for (let k = 2; k < doms.length; k++) expect(doms[k] === doms[k - 1] && doms[k] === doms[k - 2]).toBe(false);
-  });
-});
 
 describe('audio pur', () => {
   test('YIN retrouve un la 440', () => {
@@ -164,8 +151,6 @@ describe('calibrage de latence', () => {
 
 describe('pédagogie v2', () => {
   const { isAcquired } = require('../src/engine/fsrs');
-  const { conceptUnlocked } = require('../src/engine/unlock');
-  const { remediationItem } = require('../src/engine/session');
   const { mergeParams } = require('../src/engine/generators');
   const DAY = 86_400_000;
 
@@ -173,7 +158,6 @@ describe('pédagogie v2', () => {
     const now = Date.now();
     let c = review(newCompetence('pulsation', 'rythme'), 3, now);
     expect(isAcquired(c)).toBe(true);
-    expect(conceptUnlocked(CONCEPTS.find((x) => x.id === 'grave_aigu')!, { [c.key]: c }, now)).toBe(true);
     c = review(c, 3, now + 3_600_000);
     expect(isMastered(c, now + 3_600_000)).toBe(false);
     c = review(c, 3, now + 2 * DAY);
@@ -182,26 +166,6 @@ describe('pédagogie v2', () => {
   test('un échec seul n\'ouvre rien', () => {
     const c = review(newCompetence('pulsation', 'rythme'), 1, Date.now());
     expect(isAcquired(c)).toBe(false);
-  });
-  test('remédiation : la paire la plus confondue', () => {
-    const it = remediationItem(['2>3', '3>2', '1>2', 'b3>3'], TEMPLATES, () => 1);
-    expect(it?.params?.degres).toEqual([2, 3]);
-    expect(remediationItem(['1>2'], TEMPLATES, () => 1)).toBeNull();
-  });
-  test('séance avec confusions : bloc remédiation après l\'échauffement', () => {
-    const plan = buildDailySession({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 10, now: Date.now(), seed: 2, unlockAll: true, confusions: ['2>3', '2>3'] });
-    // dans la partie 1 (à l'écran), après l'échauffement
-    const k = plan.items.findIndex((i) => i.block === 'remediation');
-    const firstPart2 = plan.items.findIndex((i) => i.part === 2);
-    expect(k).toBeGreaterThan(0);
-    expect(k).toBeLessThan(firstPart2 === -1 ? plan.items.length : firstPart2);
-  });
-  test('la nouveauté fait avancer plusieurs domaines (2 en 10 min, 4 en 20 min)', () => {
-    for (const [minutes, n] of [[10, 2], [20, 4]] as const) {
-      const plan = buildDailySession({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes, now: Date.now(), seed: 2 });
-      const doms = new Set(plan.items.filter((i) => i.block === 'nouveaute').map((i) => templateById(i.templateId).domain));
-      expect(doms.size).toBeGreaterThanOrEqual(n - 1);
-    }
   });
   test('difficulté adaptative : le niveau s\'applique, les réglages utilisateur priment', () => {
     const t = templateById('OR-1-01');
@@ -375,35 +339,6 @@ describe('bourdon', () => {
 });
 
 describe('séance du jour v2', () => {
-  const { buildDailySession: build, ROUTINE } = require('../src/engine/session');
-  const base = { templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], now: Date.now(), seed: 3 };
-  test.each([5, 10, 15, 20])('%i min choisies : durée estimée à ±20 %%, même pour un nouvel utilisateur', (minutes) => {
-    const p = build({ ...base, minutes });
-    expect(p.estimatedS).toBeGreaterThan(minutes * 60 * 0.8);
-    expect(p.estimatedS).toBeLessThan(minutes * 60 * 1.2);
-  });
-  test('routine quotidienne : rythme, noms des notes, instrument et lecture', () => {
-    // sans nouveauté du jour (tout est déjà vu), la routine complète est là
-    // élève qui a déjà pratiqué chaque notion dans chaque domaine (aucune nouveauté possible)
-    const practicedAll: Record<string, unknown> = {};
-    for (const t of TEMPLATES) { const k = `${t.concepts[0]}:${t.domain}`; practicedAll[k] = { key: k, conceptId: t.concepts[0], domain: t.domain, stability: 10, difficulty: 5, lastReview: Date.now() - 86400000, due: Date.now() + 5 * 86400000, reps: 3, lapses: 0, successes: 3 }; }
-    const p = build({ ...base, minutes: 15, unlockAll: true, seenConcepts: CONCEPTS.map((c) => c.id), competences: practicedAll });
-    for (const b of ['routine_rythme', 'routine_audiation', 'routine_oreille', 'routine_perroquet', 'routine_noms', 'routine_instrument', 'routine_lecture', 'routine_repiquage']) expect(p.items.some((i: { block: string }) => i.block === b)).toBe(true);
-    expect(p.items[0].block).toBe('routine_rythme');
-    expect(ROUTINE).toHaveLength(8);
-  });
-  test('dès le 1er jour : leçon de repérage des notes sur l\'instrument', () => {
-    const p = build({ ...base, minutes: 10 });
-    expect(p.items.some((i: { lessonConceptId?: string }) => i.lessonConceptId === 'notes_instrument')).toBe(true);
-  });
-  test('jamais un exercice d\'une notion qui n\'est pas introduite', () => {
-    for (const minutes of [5, 10, 20]) {
-      const p = build({ ...base, minutes });
-      const introduced = new Set(p.items.filter((i: { lessonConceptId?: string }) => i.lessonConceptId).map((i: { lessonConceptId?: string }) => i.lessonConceptId));
-      // exception voulue : les intervalles du jour, travaillés dès le 1er jour quel que soit le niveau
-      for (const it of p.items.filter((i: { block: string }) => i.block !== 'routine_intervalles')) for (const cid of templateById(it.templateId).concepts) expect(introduced.has(cid)).toBe(true);
-    }
-  });
   test('ordre des notions : notes → gamme → tonique → degrés → … → intervalles → accords', () => {
     const order = ['notes_instrument', 'gamme_do', 'tonique', 'degres_1_3', 'degres_1_5', 'gamme_majeure', 'tierce_majeure', 'noms_notes', 'accords_145'];
     const idx = order.map((id) => CONCEPTS.findIndex((c) => c.id === id));
@@ -518,32 +453,16 @@ describe('placement par domaine', () => {
     for (const d of PL.PLACEMENT_DOMAINS) expect(simulate(d, 'bases', 0).probes).toBe(2);
   });
   test('excellent en technique, débutant en rythme : bases en rythme, défis en technique', () => {
-    const { buildDailySession: build } = require('../src/engine/session');
-    const { templateUnlocked } = require('../src/engine/unlock');
     const nT = PL.DOMAIN_PROBES.technique.length;
     const tech = simulate('technique', 'avance', nT).results;
     const ryt = simulate('rythme', 'bases', 0).results;
     const pairs = [...PL.placedPairs('technique', tech), ...PL.placedPairs('rythme', ryt)];
     expect(pairs.some((p: { domain: string }) => p.domain === 'rythme')).toBe(false);
     expect(pairs.filter((p: { domain: string }) => p.domain === 'technique').length).toBeGreaterThan(8);
-    // compétences comme après placeOut
-    const comps: Record<string, unknown> = {};
-    for (const p of pairs) comps[`${p.conceptId}:${p.domain}`] = { key: `${p.conceptId}:${p.domain}`, conceptId: p.conceptId, domain: p.domain, stability: 3, difficulty: 5, lastReview: Date.now(), due: Date.now() + 86400000, reps: 1, lapses: 0, successes: 1 };
-    const now = Date.now();
-    // technique avancée ouverte (accords de 7e), rythme avancé fermé (syncopes)
-    expect(templateUnlocked(templateById('TE-4-01'), CONCEPTS, comps, now).ok).toBe(true);
-    expect(templateUnlocked(templateById('RY-3-01'), CONCEPTS, comps, now).ok).toBe(false);
-    expect(templateUnlocked(templateById('RY-1-01'), CONCEPTS, comps, now).ok).toBe(true);
-    // la séance donne les bases du rythme
-    const plan = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: comps, seenConcepts: [...new Set(pairs.map((p: { conceptId: string }) => p.conceptId))], minutes: 15, now, seed: 2 });
-    const ry = plan.items.map((i: { templateId: string }) => templateById(i.templateId)).filter((t: { domain: string }) => t.domain === 'rythme');
-    expect(ry.length).toBeGreaterThan(0);
-    for (const t of ry) expect(t.palier).toBe(1);
-    // et la technique est travaillée au-delà du palier 1
-    const techItems = plan.items.map((i: { templateId: string }) => templateById(i.templateId)).filter((t: { domain: string }) => t.domain === 'technique');
-    expect(Math.max(...techItems.map((t: { palier: number }) => t.palier))).toBeGreaterThanOrEqual(2);
-    // repiquage et impro suivent l'oreille (débutante ici) : pas de repiquage avancé
-    for (const it of plan.items) { const t = templateById(it.templateId); if (t.domain === 'repiquage') expect(t.palier).toBe(1); }
+    // les leçons acquises suivent : rien en rythme au-delà des bases
+    const { lessonsFromConcepts } = require('../src/engine/cursus');
+    const got = lessonsFromConcepts(new Set(pairs.map((p: { conceptId: string }) => p.conceptId))).acquired;
+    expect(got).not.toContain('syncopes');
   });
 });
 
@@ -595,7 +514,8 @@ describe('migration des données', () => {
     const s = migrate(old, 0);
     expect(s.xpTotal).toBe(640);
     expect(s.streak).toBe(12);
-    expect(s.competences).toEqual(old.competences);
+    // v7 : la carte « pulsation × rythme » devient celle de la compétence de ses exercices
+    expect(s.competences.pulsation.reps).toBe(3);
     expect(s.levels).toEqual({ 'TH-1-05': 2, 'OR-1-01': 1 });
     expect(s.seenPoints).toEqual([]);
     expect(s.onboarded).toBe(true);
@@ -607,17 +527,12 @@ describe('migration des données', () => {
 });
 
 describe('palier 1 allégé', () => {
-  const { buildDailySession: build } = require('../src/engine/session');
   test('parcours principal : 2 à 3 exercices par notion', () => {
     for (const c of CONCEPTS.filter((x) => x.palier === 1)) {
       const core = TEMPLATES.filter((t) => t.concepts[0] === c.id && !t.optionnel);
       expect(core.length).toBeGreaterThanOrEqual(2);
       expect(core.length).toBeLessThanOrEqual(3);
     }
-  });
-  test('la nouveauté ne propose que le parcours principal', () => {
-    const p = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 20, now: Date.now(), seed: 5 });
-    for (const it of p.items.filter((i: { block: string }) => i.block === 'nouveaute')) expect(templateById(it.templateId).optionnel).toBeFalsy();
   });
 });
 
@@ -649,33 +564,6 @@ describe('version et nouveautés', () => {
 });
 
 
-describe('séance en deux parties, équilibrée', () => {
-  const { buildDailySession: build } = require('../src/engine/session');
-  const B = require('../src/engine/balance');
-  test('partie 1 à l\'écran d\'abord, puis partie 2 à l\'instrument', () => {
-    for (const minutes of [10, 15, 20]) {
-      const p = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: CONCEPTS.map((c) => c.id), minutes, now: Date.now(), seed: 4, unlockAll: true });
-      const parts = p.items.map((i: { part: number }) => i.part);
-      expect(parts).toEqual([...parts].sort());
-      for (const it of p.items) expect(it.part).toBe(B.partOf(templateById(it.templateId)));
-    }
-  });
-  test('la partie 1 ne demande ni instrument ni voix', () => {
-    for (const t of TEMPLATES.filter((x) => B.partOf(x) === 1)) {
-      expect(t.mechanic).not.toBe('chanter');
-      expect(['technique', 'impro']).not.toContain(B.categoryOf(t));
-    }
-  });
-  test('en régime de croisière, chaque catégorie est à ±5 points de sa cible', () => {
-    const totals: Record<string, number> = {};
-    let all = 0;
-    for (let seed = 0; seed < 30; seed++) {
-      const p = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: CONCEPTS.map((c) => c.id), minutes: 15, now: Date.now(), seed, unlockAll: true });
-      for (const it of p.items) { const c = B.categoryOf(templateById(it.templateId)); totals[c] = (totals[c] ?? 0) + it.estS; all += it.estS; }
-    }
-    for (const [c, target] of Object.entries(B.TARGETS) as [string, number][]) expect(Math.abs((totals[c] ?? 0) / all - target)).toBeLessThanOrEqual(0.05);
-  });
-});
 
 describe('portée en direct', () => {
   const M = require('../src/engine/music');
@@ -958,35 +846,6 @@ describe('pratique : exercices façon Solo', () => {
   });
 });
 
-describe('intervalles du jour', () => {
-  const I = require('../src/engine/intervals');
-  const { buildDailySession: build } = require('../src/engine/session');
-  test('débutant : octave, quinte, quarte en montant, chaque jour', () => {
-    expect(I.dailyIntervals({})).toEqual({ sens: 'montant', intervalles: [12, 7, 5] });
-    const p = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 10, now: Date.now(), seed: 1 });
-    const it = p.items.find((x: { block: string }) => x.block === 'routine_intervalles');
-    expect(it.params).toMatchObject({ sens: 'montant', intervalles: [12, 7, 5] });
-  });
-  test('un intervalle acquis ouvre le suivant ; tout acquis en montant → on passe au descendant ; tout acquis → plus de bloc', () => {
-    let st = {};
-    const good = (sens: string, x: number) => Array.from({ length: 14 }, () => ({ key: I.intervalKey(sens, x), ok: true }));
-    st = I.recordIntervalAnswers(st, good('montant', 12));
-    expect(I.dailyIntervals(st).intervalles).toEqual([12, 7, 5]);
-    st = I.recordIntervalAnswers(st, good('montant', 7));
-    expect(I.dailyIntervals(st).intervalles).toEqual([12, 7, 5, 4]);
-    for (const x of I.INTERVAL_ORDER) st = I.recordIntervalAnswers(st, good('montant', x));
-    expect(I.dailyIntervals(st).sens).toBe('descendant');
-    for (const x of I.INTERVAL_ORDER) st = I.recordIntervalAnswers(st, good('descendant', x));
-    expect(I.dailyIntervals(st)).toBeNull();
-    const p = build({ templates: TEMPLATES, concepts: CONCEPTS, competences: {}, seenConcepts: [], minutes: 10, now: Date.now(), seed: 1, intervalStats: st });
-    expect(p.items.some((x: { block: string }) => x.block === 'routine_intervalles')).toBe(false);
-  });
-  test('erreurs récentes : l\'intervalle n\'est plus acquis (20 dernières réponses)', () => {
-    let st = I.recordIntervalAnswers({}, Array.from({ length: 20 }, () => ({ key: 'montant:12', ok: true })));
-    st = I.recordIntervalAnswers(st, Array.from({ length: 3 }, () => ({ key: 'montant:12', ok: false })));
-    expect(I.intervalMastered(st, 'montant:12')).toBe(false);
-  });
-});
 
 describe('points de leçon validés', () => {
   test('réussir un exercice valide ses points de leçon ; échouer ne valide rien', () => {

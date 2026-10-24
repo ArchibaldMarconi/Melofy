@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { PlanItem, WorkoutPart } from '../content/types';
-import { CONCEPTS } from '../content/concepts';
+import { AREAS, AREA_LABEL, skillArea, skillTitle, type Area } from '../content/skills';
 import { TEMPLATES, templateById } from '../content/templates';
 import { deepLessonById } from '../content/deep';
 import { displayTitle } from '../content/titles';
@@ -21,11 +21,11 @@ import { BADGES } from '../content/badges';
 import { colors, domainColor, type } from '../theme';
 import type { RootStackParamList } from './navigation';
 
-const DOMAIN_LABEL: Record<string, string> = { rythme: 'Rythme', oreille: 'Oreille', theorie: 'Théorie', technique: 'Technique', impro: 'Impro', repiquage: 'Repiquage' };
+const AREA_COLOR: Record<Area, string> = { oreille: domainColor.oreille, mains: domainColor.technique, lecture: domainColor.theorie, rythme: domainColor.rythme };
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 type Mode = 'plan' | 'situation' | 'running' | 'done';
-interface Summary { result: SessionResult; streak: number; bonus: number; badges: string[]; counted: boolean; progress: { d: string; titles: string[] }[] }
+interface Summary { result: SessionResult; streak: number; bonus: number; badges: string[]; counted: boolean; progress: { d: Area; titles: string[] }[] }
 
 export function WorkoutScreen() {
   const st = useUserStore();
@@ -70,8 +70,8 @@ export function WorkoutScreen() {
   const onEnd = (r: SessionResult) => {
     const now = useUserStore.getState();
     const advanced = Object.values(now.competences).filter((c) => c.reps > 0 && (c.successes ?? 0) > 0 && !before.current.has(c.key));
-    const progressByDomain = (['rythme', 'oreille', 'theorie', 'technique', 'impro', 'repiquage'] as const).map((d) => ({
-      d, titles: [...new Set(advanced.filter((c) => c.domain === d).map((c) => CONCEPTS.find((x) => x.id === c.conceptId)?.title ?? c.conceptId))],
+    const progressByDomain = AREAS.map((a) => ({
+      d: a, titles: advanced.filter((c) => skillArea(c.key) === a).map((c) => skillTitle(c.key)),
     })).filter((x) => x.titles.length);
     if (!r.done) { setSummary({ result: r, streak: st.streak, bonus: 0, badges: [], counted: false, progress: [] }); setMode('done'); return; }
     const c = now.completeSession({ xp: r.xp, exercises: r.total, perfect: r.perfect, minutes: now.settings.sessionMinutes, done: r.done });
@@ -235,9 +235,9 @@ function SessionSummary({ s, onClose }: { s: Summary; onClose: () => void }) {
           <View style={styles.box}>
             <Text style={type.title}>Tu as avancé</Text>
             {s.progress.map((x) => (
-              <Text key={x.d} style={type.body}><Text style={{ fontWeight: '900', color: domainColor[x.d as keyof typeof domainColor] ?? colors.ink }}>{DOMAIN_LABEL[x.d] ?? x.d} · </Text>{x.titles.join(', ')}</Text>
+              <Text key={x.d} style={type.body}><Text style={{ fontWeight: '900', color: AREA_COLOR[x.d] }}>{AREA_LABEL[x.d]} · </Text>{x.titles.join(', ')}</Text>
             ))}
-            {r.techUp.map((l, k) => <Text key={k} style={type.body}><Text style={{ fontWeight: '900', color: domainColor.technique }}>Technique · </Text>{l}</Text>)}
+            {r.techUp.map((l, k) => <Text key={k} style={type.body}><Text style={{ fontWeight: '900', color: AREA_COLOR.mains }}>Technique · </Text>{l}</Text>)}
           </View>
         ) : null}
         {won.length ? <View style={styles.box}>{won.map((b) => <Text key={b.id} style={type.body}>{b.icon}  Badge « {b.title} »</Text>)}</View> : null}

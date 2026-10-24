@@ -14,7 +14,7 @@ import { estimateSeconds } from './duration';
 import { lessonSeen, practiceOf, templateAvailable, type LessonProgress } from './cursus';
 import { currentTechScale, techniquePicks } from './technique';
 import { partOf } from './balance';
-import { interleave } from './session';
+import { dueOfTemplate, lastReviewOfTemplate, practicedTemplate } from './srs';
 
 export const PART_SHARES: Record<Exclude<WorkoutPart, 'technique'>, number> = { revision: 0.4, oreille: 0.2, mapping: 0.15, perroquet: 0.25 };
 export const PART_ORDER: WorkoutPart[] = ['revision', 'oreille', 'mapping', 'perroquet', 'technique'];
@@ -65,7 +65,6 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   const seen = DEEP_LESSONS.filter((l) => lessonSeen(l.id, p));
   if (!seen.length && !p.unlockAll) return { items: [], totalS: total, estimatedS: 0, needsLesson: true };
 
-  const comps = Object.values(inp.competences);
   const voiceOk = (t: ExerciseTemplate) => inp.canSing || t.mechanic !== 'chanter';
   const fits = voiceOk;
   const inputFor = (t: ExerciseTemplate, part: WorkoutPart): 'micro' | 'ecran' => {
@@ -75,8 +74,7 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   const est = (t: ExerciseTemplate, params: Params | undefined, s: number) => {
     const learned = inp.avgTimeS?.[t.id];
     if (learned) return learned;
-    const practiced = comps.some((c) => c.conceptId === t.concepts[0] && c.domain === t.domain && c.reps > 0);
-    return Math.round(estimateSeconds(t, generate(t, params, s, { instrument: inp.instrument }), { firstTime: !practiced }));
+    return Math.round(estimateSeconds(t, generate(t, params, s, { instrument: inp.instrument }), { firstTime: !practicedTemplate(t, inp.competences) }));
   };
   const make = (t: ExerciseTemplate, part: WorkoutPart, block: PlanItem['block'], params?: Params, extra: Partial<PlanItem> = {}): PlanItem => {
     const s = seed();
@@ -85,11 +83,8 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
   const sum = (xs: PlanItem[]) => xs.reduce((a, x) => a + (x.estS ?? 0), 0);
   const used = new Map<string, number>();
   const take = (it: PlanItem) => { used.set(it.templateId, (used.get(it.templateId) ?? 0) + 1); return it; };
-  const lastSeen = (t: ExerciseTemplate) => Math.max(0, ...comps.filter((c) => t.concepts.includes(c.conceptId) && c.domain === t.domain).map((c) => c.lastReview));
-  const dueOf = (t: ExerciseTemplate) => {
-    const c = comps.find((x) => x.conceptId === t.concepts[0] && x.domain === t.domain && x.reps > 0);
-    return c && c.due <= inp.now ? c.due : null;
-  };
+  const lastSeen = (t: ExerciseTemplate) => lastReviewOfTemplate(t, inp.competences);
+  const dueOf = (t: ExerciseTemplate) => dueOfTemplate(t, inp.competences, inp.now);
   const available = (t: ExerciseTemplate) => templateAvailable(t, p).ok && fits(t);
   const lessonIndex = (id: string) => DEEP_LESSONS.findIndex((l) => l.id === id);
 
@@ -186,4 +181,22 @@ export function buildWorkout(inp: WorkoutInput): WorkoutPlan {
     ...interleave(ear, inp.templates), ...map, ...interleave(echo, inp.templates), ...tech,
   ];
   return { items, totalS: total + (inp.techniqueMinutes ?? 0) * 60, estimatedS: sum(items), needsLesson: false };
+}
+
+/** jamais plus de 2 exercices du même domaine d'affilée (l'attention retombe sur une longue série identique) */
+export function interleave(items: PlanItem[], templates: ExerciseTemplate[], prefix: PlanItem[] = []): PlanItem[] {
+  const dom = (i: PlanItem) => templates.find((t) => t.id === i.templateId)?.domain;
+  const rest = [...items];
+  const placed = [...prefix];
+  const res: PlanItem[] = [];
+  while (rest.length) {
+    const n = placed.length;
+    const blocked = n >= 2 && dom(placed[n - 1]) === dom(placed[n - 2]) ? dom(placed[n - 1]) : undefined;
+    let idx = rest.findIndex((i) => dom(i) !== blocked);
+    if (idx < 0) idx = 0;
+    const it = rest.splice(idx, 1)[0];
+    res.push(it);
+    placed.push(it);
+  }
+  return res;
 }

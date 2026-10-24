@@ -9,5 +9,5 @@ export type RootStackParamList = {
   Focus: { area: Area };
   Metronome: undefined;
   Accordeur: undefined;
-  Practice: { templateId: string; params?: Params; seed: number; lessonConceptId?: string; minutes?: number; /** série technique : + N BPM après chaque réussite */ tempoStep?: number } | { boss: string };
+  Practice: { templateId: string; params?: Params; seed: number; minutes?: number; /** série technique : + N BPM après chaque réussite */ tempoStep?: number } | { boss: string };
 };

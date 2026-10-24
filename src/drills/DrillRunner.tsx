@@ -17,6 +17,7 @@ import { makeTarget, positionsOf, step, type DrillConfig, type DrillTarget, type
 
 const ADVANCE_MS = { trouve: 500, '2s': 2000, '5s': 5000 } as const;
 const KIND_LABEL = { notes: 'Notes', intervalles: 'Intervalles', accords: 'Accords', gammes: 'Gammes' } as const;
+const DRILL_SKILL = { notes: 'notes_instrument', intervalles: 'intervalles_instrument', accords: 'accords_instrument', gammes: 'gammes_instrument' } as const;
 
 export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: () => void }) {
   const instrument = useUserStore((s) => s.settings.instrument);
@@ -79,7 +80,16 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   // XP de pratique : 1 par cible trouvée (20 au plus par série), crédité une fois à la fin
   const credited = useRef(false);
   useEffect(() => {
-    if (done && !credited.current) { credited.current = true; useUserStore.getState().addPracticeXp(Math.min(20, stats.current.targets)); }
+    if (done && !credited.current) {
+      credited.current = true;
+      const st = stats.current;
+      useUserStore.getState().addPracticeXp(Math.min(20, st.targets));
+      // la série compte aussi comme une révision de la compétence entraînée (si elle est due)
+      if (st.targets >= 3) {
+        const precision = st.notes ? (st.notes - st.errors) / st.notes : 0;
+        useUserStore.getState().recordSkillPractice(DRILL_SKILL[config.kind], 'technique', precision >= 0.8, precision);
+      }
+    }
     if (!done) credited.current = false;
   }, [done]);
 

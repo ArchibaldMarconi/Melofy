@@ -110,11 +110,11 @@ export function PlacementScreen() {
           return (
             <View key={dom} style={[styles.result, { borderLeftColor: domainColor[dom] }]}>
               <Text style={[styles.domainTag, { color: domainColor[dom] }]}>{PLACEMENT_LABEL[dom]}</Text>
-              <Text style={type.body}>{c ? `Acquis jusqu'à « ${c.title} » (palier ${c.palier}) : on te met au défi.` : 'Les bases à construire : on commence par là.'}</Text>
+              <Text style={type.body}>{c ? `Acquis jusqu'à « ${c.title} » : on te met au défi.` : 'Les bases à construire : on commence par là.'}</Text>
             </View>
           );
         })}
-        {anything ? <Text style={type.small}>Les notions validées reviennent vite en révision pour confirmer qu'elles sont solides, au niveau de difficulté le plus élevé.</Text> : <Text style={type.body}>Aucun souci : le palier 1 va vite quand on progresse bien, et la difficulté s'adapte à toi.</Text>}
+        {anything ? <Text style={type.small}>Les notions validées reviennent vite en révision pour confirmer qu'elles sont solides, au niveau de difficulté le plus élevé.</Text> : <Text style={type.body}>Aucun souci : les premières leçons vont vite quand on progresse bien, et la difficulté s'adapte à toi.</Text>}
         <Button label="C'est parti" onPress={() => placeOut(all)} />
       </ScrollView>
     </SafeAreaView>

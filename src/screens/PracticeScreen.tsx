@@ -62,7 +62,7 @@ export function PracticeScreen({ route, navigation }: Props) {
       <TopBar title="Pratique libre" onClose={() => navigation.goBack()} />
       <ExercisePlayer
         onSkip={() => navigation.goBack()}
-        template={templateById(p.templateId)} params={p.params} seed={p.seed} lessonConceptId={p.lessonConceptId} inSession={false}
+        template={templateById(p.templateId)} params={p.params} seed={p.seed} inSession={false}
         onFinished={() => undefined} onNext={() => navigation.goBack()}
       />
     </SafeAreaView>

@@ -1,5 +1,5 @@
 // Lecteur d'exercice : la machine à états unique décrite dans la spéc.
-// LECON → CONSIGNE → ECOUTE → SAISIE → ANALYSE → (SUCCES | FEEDBACK → ECOUTE | DEMO) → RESULTAT
+// CONSIGNE → ECOUTE → SAISIE → ANALYSE → (SUCCES | FEEDBACK → ECOUTE | DEMO) → RESULTAT
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { QuizRunner } from './QuizRunner';
@@ -11,7 +11,6 @@ import { ConsigneCard, FeedbackPanel } from './panels';
 import type {
   Answer, DegreeItem, ExerciseTemplate, InputMode, Outcome, Params, PlayedNote, ScoreResult, Variant,
 } from '../content/types';
-import { conceptById } from '../content/concepts';
 import { MECHANIC_LABEL } from '../content/templates';
 import { displayTitle } from '../content/titles';
 import { audio } from '../audio/RNAudioEngine';
@@ -29,7 +28,6 @@ import { colors, domainColor, domainLabel, type } from '../theme';
 import { Button } from '../components/Button';
 import { DegreePad } from '../components/DegreePad';
 import { Fretboard } from '../components/Fretboard';
-import { LessonCard } from '../components/LessonCard';
 import { Piano } from '../components/Piano';
 import { PitchMeter } from '../components/PitchMeter';
 import { FigureGlyph, RhythmNotation } from '../components/RhythmNotation';
@@ -47,13 +45,12 @@ import { howToAnswer, successText } from '../engine/consigne';
 import { LessonPointCard } from '../components/LessonPointCard';
 import { PointTip } from '../components/PointTip';
 
-type Phase = 'LECON' | 'CONSIGNE' | 'ECOUTE' | 'SAISIE' | 'FEEDBACK' | 'DEMO' | 'SUCCES' | 'RESULTAT';
+type Phase = 'CONSIGNE' | 'ECOUTE' | 'SAISIE' | 'FEEDBACK' | 'DEMO' | 'SUCCES' | 'RESULTAT';
 
 export interface PlayerProps {
   template: ExerciseTemplate;
   params?: Params;
   seed: number;
-  lessonConceptId?: string;
   inSession: boolean;
   onFinished: (info: ResultInfo, outcome: Outcome) => void;
   onNext: () => void;
@@ -66,16 +63,14 @@ export interface PlayerProps {
 }
 
 
-export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inSession, onFinished, onNext, onSkip, placement, inputOverride }: PlayerProps) {
+export function ExercisePlayer({ template: t, params, seed, inSession, onFinished, onNext, onSkip, placement, inputOverride }: PlayerProps) {
   const settings = useUserStore((s) => s.settings);
   const recordResult = useUserStore((s) => s.recordResult);
-  const markConceptSeen = useUserStore((s) => s.markConceptSeen);
   const color = domainColor[t.domain];
   const instrument = settings.instrument;
   // niveau de difficulté adaptative figé au début de l'exercice
   const [level] = useState(() => useUserStore.getState().levels?.[t.id] ?? 0);
   const v: Variant = useMemo(() => generate(t, params, seed, { tuning: getTuning(), instrument, level }), [t, params, seed, instrument, level]);
-  const lesson = lessonConceptId ? conceptById(lessonConceptId) : undefined;
 
   const inputOptions = useMemo(() => availableInputs(t, v, instrument), [t, v, instrument]);
   // « ecran » : clavier, manche ou pad à l'écran (partie 1 de la séance) ; « micro » : l'instrument réel (partie 2)
@@ -101,7 +96,7 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
   // la consigne complète à la 1re rencontre seulement ; ensuite, la question et un bouton (le détail reste à un toucher)
   const [firstTime] = useState(() => placement || !(useUserStore.getState().seenTemplates ?? []).includes(t.id));
   const [showConsigne, setShowConsigne] = useState(false);
-  const [phase, setPhase] = useState<Phase>(lesson ? 'LECON' : 'CONSIGNE');
+  const [phase, setPhase] = useState<Phase>('CONSIGNE');
   const [step, setStep] = useState<0 | 1>(0); // repiquage : 0 rejouer, 1 transcrire
   const [attempt, setAttempt] = useState(1);
   const [rate, setRate] = useState(1);
@@ -499,15 +494,6 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
   };
 
   // ---------- rendu ----------
-  if (phase === 'LECON' && lesson) {
-    return (
-      <ScrollView contentContainerStyle={styles.pad}>
-        <LessonCard concept={lesson} color={color} instrument={instrument} onDone={() => { markConceptSeen(lesson.id); setPhase('CONSIGNE'); }} />
-        {onSkip ? <Pressable onPress={skip} style={{ alignSelf: 'center', padding: 12 }}><Text style={[styles.skip, { color: colors.inkSoft }]}>Passer l'exercice</Text></Pressable> : null}
-      </ScrollView>
-    );
-  }
-
   // exercices posés en noms de notes (construire, trouver, placer un accord) : pas de degrés ni de repère de tonique
   const namedTask = ['build_chord', 'build_scale', 'build_interval', 'find_note', 'play_chord'].includes(t.generator);
   // exercices de repérage : aucun nom ni degré sur les touches, sinon la réponse est écrite dessus
@@ -634,11 +620,6 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
               onReplay={() => { if (t.reecoutesMax !== null && replays + 1 > t.reecoutesMax) addHelp(2); setReplays((r) => r + 1); }}
               onDone={(ids) => {
                 setQuizIds(ids);
-                // suivi des intervalles (entraînement quotidien jusqu'à ce qu'ils soient tous acquis)
-                if (v.intervalSens === 'montant' || v.intervalSens === 'descendant') {
-                  const sens = v.intervalSens;
-                  useUserStore.getState().recordIntervals(v.expected.kind === 'quiz' ? v.expected.items.map((it, i) => ({ key: `${sens}:${it.answerId}`, ok: ids[i] === it.answerId })) : []);
-                }
                 submit({ kind: 'quiz', ids });
               }} />
           ) : null}

@@ -2,7 +2,7 @@
 // Chaque version décrit ce qui change ; `migrate` applique toutes les étapes depuis la version sauvegardée.
 // Règle pour les devs : tout renommage d'identifiant ou de champ = une nouvelle version ici + un test.
 
-export const STORE_VERSION = 6;
+export const STORE_VERSION = 7;
 
 /** identifiants d'exercices renommés */
 export const RENAMED_TEMPLATES: Record<string, string> = {
@@ -11,6 +11,8 @@ export const RENAMED_TEMPLATES: Record<string, string> = {
 
 import type { CompetenceState } from '../content/types';
 import { lessonsFromCompetences } from '../engine/cursus';
+import { TEMPLATES } from '../content/templates';
+import { skillOf } from '../content/skills';
 
 type AnyState = Record<string, unknown>;
 
@@ -67,6 +69,23 @@ export function migrate(persisted: unknown, fromVersion: number): AnyState {
     // v5 → v6 (0.25.0) : la consigne complète n'est montrée qu'à la 1re rencontre d'un exercice ;
     // les exercices déjà faits (temps mesuré) comptent comme déjà vus.
     s.seenTemplates ??= Object.keys((s.avgTimeS as Record<string, number> | undefined) ?? {});
+  }
+  if (fromVersion < 7) {
+    // v6 → v7 (0.25.0) : une carte de révision par compétence au lieu d'une par notion × domaine. Chaque ancienne carte
+    // pratiquée passe à la compétence de ses exercices ; quand plusieurs se rejoignent, on garde la plus travaillée,
+    // avec la révision due la plus proche (on revérifie tôt plutôt que trop tard). L'historique des intervalles disparaît.
+    const old = (s.competences ?? {}) as Record<string, CompetenceState>;
+    const out: Record<string, CompetenceState> = {};
+    for (const t of TEMPLATES) {
+      const c = old[`${t.concepts[0]}:${t.domain}`];
+      if (!c || !c.reps) continue;
+      const k = skillOf(t);
+      const cur = out[k];
+      out[k] = !cur ? { ...c, key: k, conceptId: k } : { ...(c.reps > cur.reps ? c : cur), key: k, conceptId: k, due: Math.min(c.due, cur.due) };
+    }
+    s.competences = out;
+    s.levelRuns ??= {};
+    delete s.intervalStats;
   }
   return s;
 }

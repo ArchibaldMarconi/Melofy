@@ -242,7 +242,8 @@ export interface Outcome {
 }
 
 export interface CompetenceState {
-  key: string; // `${conceptId}:${domain}`
+  /** la compétence (voir content/skills) ; anciennes sauvegardes : `${notion}:${domaine}` avant migration */
+  key: string;
   conceptId: string;
   domain: Domain;
   stability: number;
@@ -269,8 +270,6 @@ export interface PlanItem {
   templateId: string;
   seed: number;
   block: SessionBlock;
-  /** concept dont la leçon doit être montrée avant l'exercice */
-  lessonConceptId?: string;
   params?: Params;
   /** 1 = partout à l'écran ; 2 = à l'instrument */
   part?: 1 | 2;

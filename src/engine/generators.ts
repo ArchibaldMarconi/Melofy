@@ -12,6 +12,7 @@ import { alternatePicking, arpeggioPosition, chordShape, CHORD_SHAPES, pianoLeft
 import { alteredLetters, applyKeySig, FLAT_NAMES, keyBySig, MAJOR_KEYS, nameInKey, referenceEvents, SHARP_NAMES } from './music';
 import { BORROWED, MODES, CADENCES, chordName, diatonicSeventh, DIATONIC7_ROMAN, scaleNote, SEVENTH_LABEL, SEVENTH_SEMI, DEG_SEMI, DIATONIC_QUALITY, DIATONIC_ROMAN, INTERVAL_LABEL, MAJOR, MINOR, MINOR_PENTA, TRIAD_LABEL, TRIAD_SEMI, tokenMelody, tokLabel, tokMidi, tokToItem, triadOf } from './chroma';
 import { tunesFor, tuneDegreeSemis, TUNES } from '../content/tunes';
+import { maxLevel, resolveParams } from './difficulty';
 
 export interface GenContext { /** accordage de la guitare (corde 0 = la plus grave) */ tuning?: number[]; instrument: Instrument }
 
@@ -26,13 +27,9 @@ function tempoFrom(p: Params, r: Rng, d = 80): number {
   return num(t, d);
 }
 
-/** réglages du gabarit < palier de difficulté adaptative < réglages choisis par l'utilisateur */
-export function mergeParams(t: ExerciseTemplate, overrides?: Params, level = 0): Params {
-  const step = t.progression?.[Math.min(level, t.progression.length - 1)] ?? {};
-  return { ...t.params, ...step, ...(overrides ?? {}) };
-}
-
-export const maxLevel = (t: ExerciseTemplate) => Math.max(0, (t.progression?.length ?? 1) - 1);
+/** réglages du gabarit < palier de difficulté atteint < réglages imposés par le contexte (voir engine/difficulty) */
+export const mergeParams = resolveParams;
+export { maxLevel };
 
 function baseVariant(t: ExerciseTemplate, seed: number, tonic: number, tempo: number): Variant {
   return {
