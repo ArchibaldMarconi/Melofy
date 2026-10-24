@@ -3,7 +3,7 @@ import type { DegreeItem, Instrument, Params } from '../content/types';
 
 export const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 export const KEY_PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const NAMES_FR = ['do', 'do♯', 'ré', 'mi♭', 'mi', 'fa', 'fa♯', 'sol', 'la♭', 'la', 'si♭', 'si'];
+export const NAMES_FR = ['do', 'do♯', 'ré', 'mi♭', 'mi', 'fa', 'fa♯', 'sol', 'la♭', 'la', 'si♭', 'si'];
 
 export const mod12 = (n: number) => ((Math.round(n) % 12) + 12) % 12;
 

@@ -94,6 +94,12 @@ export function DisplayView({ d, color, highlight = [], instrument = 'piano', ta
       : <Piano startMidi={60} octaves={2} highlights={hl} labels="aucun" showTonic={false} onPress={() => undefined} disabled />;
   }
   if (d.kind === 'rhythm') return <RhythmNotation items={d.items} highlight={highlight} perBar={d.perBar} pickup={d.pickup} />;
+  if (d.kind === 'staffRhythm') return (
+    <View style={{ gap: 4 }}>
+      <RhythmNotation items={d.items} highlight={highlight} perBar={d.perBar} />
+      {tab && instrument === 'guitare' ? <Tab midis={d.midis} color={color} /> : <Staff midis={d.midis} color={color} />}
+    </View>
+  );
   if (d.kind === 'figure') return <View style={{ alignItems: 'center' }}><FigureGlyph figure={d.figure} /></View>;
   if (d.kind === 'degrees') return <Text style={[styles.degrees, { color }]}>{d.degrees.join('  ')}</Text>;
   if (d.kind === 'text') return <Text style={[type.title, styles.center]}>{d.text}</Text>;

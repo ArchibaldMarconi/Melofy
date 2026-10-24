@@ -8,6 +8,18 @@ export interface Release { version: string; date: string; notes: string[] }
 /** La plus récente en premier. Une phrase par nouveauté, du point de vue du testeur. */
 export const RELEASES: Release[] = [
   {
+    version: '0.25.0', date: '2026-10-24', notes: [
+      'Quatre onglets au lieu de six : Séance, Leçons, Jouer (avec le métronome, l\'accordeur et le nouveau Jam) et Moi. Le métronome s\'ouvre sur l\'essentiel ; signatures, swing et automate sont sous « Plus de réglages ».',
+      'La séance démarre d\'un toucher : durée, module technique, instrument et chant se règlent une fois dans Moi. Plus d\'écran entre les parties, et la consigne complète n\'apparaît qu\'à la 1re rencontre d\'un exercice. Réussi : on enchaîne tout seul.',
+      'Une séance qui forme un tout : échauffement, révision, entendre, trouver, rejouer, puis une minute d\'improvisation. Quand tu connais les armures, entendre, trouver et rejouer partagent la tonalité du jour.',
+      'Dans chaque leçon, « À toi d\'essayer » : tu cherches avec les mains avant qu\'on te donne le nom. Les claviers et manches dessinés se jouent. « Je connais déjà » permet de passer directement la validation.',
+      'La difficulté monte sans plafond : au-delà des niveaux écrits, tempo, longueur des phrases, toutes les tonalités, moins d\'aide. Elle vise environ 80 % de réussites nettes : un cran plus dur après trois réussites franches, un cran plus facile après un échec.',
+      'Nouveau chapitre « Pour aller plus loin » : dominantes secondaires, accords enrichis (9, sus, 13), conduite des voix, modes du mineur mélodique. Et aussi : lecture à vue en rythme, repiquage de phrases plus longues sur ii – V – I.',
+      'Jam : un accompagnement en boucle (pop, rock, shuffle, funk, bossa, ballade) sur six grilles, avec les notes de la gamme et celles de l\'accord en cours à viser.',
+      'Moi : une seule vue de progression, par compétence (oreille, instrument, lecture et théorie, rythme), et des réglages rangés. Ta progression passe au nouveau modèle sans rien perdre.',
+    ],
+  },
+  {
     version: '0.24.1', date: '2026-10-18', notes: [
       'Les exercices qui parlent en degrés (degrés 1 à 7, dictées, fonctions sur l\'instrument…) arrivent avec la leçon 3, celle qui explique les degrés, et plus dès la leçon 2.',
       'Les exercices de modes et de gammes portent le nom de ce que tu joues : « Joue le mixolydien », « Positions : le lydien », « Le phrygien sur une corde ». Au piano, plus de « positions » : la gamme avec son doigté.',

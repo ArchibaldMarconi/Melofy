@@ -36,4 +36,8 @@ export const UTILE: Record<string, string> = {
   mesures_impaires: 'Jouer des musiques des Balkans, du rock progressif ou certains thèmes de film, en 5 ou 7 temps.',
   manche_complet: 'Jouer dans n\'importe quelle tonalité, partout sur l\'instrument, sans réapprendre chaque fois.',
   impro_modale: 'Improviser sur un accord ou un bourdon qui dure, en faisant entendre une couleur précise.',
+  dominantes_secondaires: 'Comprendre pourquoi un accord « étranger » sonne si bien, et le placer toi-même pour donner du relief à une grille.',
+  extensions: 'Jouer les accords riches de la soul et du jazz, et choisir la couleur d\'un accord sans changer son rôle.',
+  modes_melodique: 'Avoir des notes qui collent aux accords de 7 les plus tendus, là où la gamme majeure ne suffit plus.',
+  conduite_voix: 'Accompagner de façon fluide, avec des doigts qui bougent peu, et entendre la ligne cachée dans une grille.',
 };

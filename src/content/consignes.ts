@@ -211,4 +211,16 @@ export const CONSIGNES: Record<string, Consigne> = {
   'TH-2-04': { lecons: ['construire_intervalle', 'intervalles'], faire: 'Construis une tierce majeure : touche la note de départ indiquée, puis la note 4 demi-tons plus haut, et Valide.' },
   'RP-2-04': { lecons: ['repiquer', 'transcrire'], faire: 'Deux étapes. 1 : écoute une mélodie connue et rejoue-la sur ton instrument. 2 : écris-la en degrés, avec la durée de chaque note.' },
   'RP-2-03': { lecons: ['repiquer', 'transcrire'], faire: 'Deux étapes. 1 : écoute une phrase de 5 notes et rejoue-la. 2 : écris ce que tu as joué en degrés, avec les durées.' },
+  // ---------- Pour aller plus loin ----------
+  'OR-6-01': { lecons: ['dominante_secondaire'], faire: 'Tu entends I, puis un accord de 7 « emprunté », puis l\'accord qu\'il prépare. Quelle dominante secondaire est-ce ?' },
+  'TH-6-01': { lecons: ['dominante_secondaire'], faire: 'Construis l\'accord de 7 qui prépare l\'accord demandé : sa fondamentale est une quinte au-dessus de lui.' },
+  'OR-6-02': { lecons: ['extensions'], faire: 'Un accord enrichi est joué, plaqué puis arpégé. Quelle couleur : 9, sus, 13… ?' },
+  'TH-6-02': { lecons: ['extensions'], faire: 'Construis l\'accord enrichi demandé sur le clavier ou le manche : toutes ses notes, à n\'importe quelle octave.' },
+  'OR-6-03': { lecons: ['modes_melodique'], faire: 'Sur un bourdon, une phrase insiste sur la note caractéristique d\'un mode du mineur mélodique. Lequel ?' },
+  'TH-6-03': { lecons: ['modes_melodique'], faire: 'Un accord ou une suite de degrés s\'affiche : quel mode du mineur mélodique lui correspond ?' },
+  'TE-6-01': { lecons: ['modes_melodique'], faire: 'Monte puis descends le lydien ♭7 depuis la tonique, une note par clic.' },
+  'TE-6-02': { lecons: ['conduite_voix'], faire: 'Un accord est écrit sur la portée. Choisis les notes de l\'accord suivant en bougeant chaque note le moins possible.' },
+  'TE-6-03': { lecons: ['conduite_voix'], faire: 'L\'accompagnement joue ii – V – I. Joue une note-guide par accord, au 1er temps : la ligne descend doucement.' },
+  'TE-2-16': { lecons: ['lecture_a_vue', 'lire_portee'], faire: 'Des notes et leur rythme sont écrits. Après le décompte, joue-les en rythme avec le clic, sans t\'arrêter.' },
+  'RP-4-01': { lecons: ['transcrire', 'memoire'], faire: 'Une phrase plus longue est jouée sur ii – V – I. Rejoue-la, puis écris-la en degrés avec la durée de chaque note.' },
 };

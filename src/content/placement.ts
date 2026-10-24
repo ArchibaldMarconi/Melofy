@@ -39,6 +39,8 @@ export const DOMAIN_PROBES: Record<PlacementDomain, Probe[]> = {
     { conceptId: 'modes', templateId: 'OR-5-01', params: { questions: 3, modes: ['ionien', 'dorien', 'mixolydien', 'eolien'] } },
     { conceptId: 'emprunts', templateId: 'OR-5-03', params: { questions: 3, accords: ['IV', 'iv', 'bVII'] } },
     { conceptId: 'modulation', templateId: 'OR-5-05', params: { questions: 3, modulations: ['reste', 'V', 'vi'] } },
+    { conceptId: 'dominantes_secondaires', templateId: 'OR-6-01', params: { questions: 3, secondaires: ['V/V', 'V/vi', 'V/IV'] } },
+    { conceptId: 'extensions', templateId: 'OR-6-02', params: { questions: 3, qualites: ['maj9', 'dom9', 'sus4'] } },
   ],
   theorie: [
     { conceptId: 'notes_instrument', templateId: 'TH-1-02', params: { questions: 3, etendue: 1 } },
@@ -51,6 +53,7 @@ export const DOMAIN_PROBES: Record<PlacementDomain, Probe[]> = {
     { conceptId: 'accords_7', templateId: 'TH-4-01', params: { qualites: ['maj7', 'dom7', 'm7'] } },
     { conceptId: 'cle_fa', templateId: 'TH-4-04', params: { questions: 3, de: 41, a: 57 } },
     { conceptId: 'modes', templateId: 'TH-5-01', params: { questions: 3 } },
+    { conceptId: 'modes_melodique', templateId: 'TH-6-03', params: { questions: 3 } },
   ],
   technique: [
     { conceptId: 'notes_instrument', templateId: 'TE-1-05', params: { nb_notes: 3 } },
@@ -61,6 +64,7 @@ export const DOMAIN_PROBES: Record<PlacementDomain, Probe[]> = {
     { conceptId: 'accords_7', templateId: 'TE-4-01', params: { qualites: ['maj7', 'dom7', 'm7'] } },
     { conceptId: 'cle_fa', templateId: 'TE-4-03', params: { nb_notes: 3, de: 41, a: 57 } },
     { conceptId: 'manche_complet', templateId: 'TE-5-03', params: { mode: 'dorien', fonctions: [3, 6, 7], nb_cibles: 2 } },
+    { conceptId: 'conduite_voix', templateId: 'TE-6-02' },
   ],
 };
 

@@ -110,3 +110,29 @@ export const BORROWED: Record<string, { label: string; semis: number[] }> = {
   bVI: { label: '♭VI (emprunté)', semis: [8, 12, 15] },
   bIII: { label: '♭III (emprunté)', semis: [3, 7, 10] },
 };
+
+// ---------- Pour aller plus loin : dominantes secondaires, extensions, modes du mineur mélodique ----------
+/** dominantes secondaires en majeur : l'accord de 7e de dominante une quinte au-dessus de la cible (degré cible, fondamentale en demi-tons) */
+export const SECONDARY: Record<string, { label: string; target: number; root: number }> = {
+  'V/V': { label: 'V7 de V (II7 → V)', target: 5, root: 2 },
+  'V/vi': { label: 'V7 de vi (III7 → vi)', target: 6, root: 4 },
+  'V/IV': { label: 'V7 de IV (I7 → IV)', target: 4, root: 0 },
+  'V/ii': { label: 'V7 de ii (VI7 → ii)', target: 2, root: 9 },
+};
+/** accords enrichis : demi-tons depuis la fondamentale */
+export const EXTENSIONS: Record<string, { label: string; short: string; semis: number[] }> = {
+  maj9: { label: 'Majeur 9 (maj9)', short: 'maj9', semis: [0, 4, 7, 11, 14] },
+  dom9: { label: 'Dominante 9 (9)', short: '9', semis: [0, 4, 7, 10, 14] },
+  m9: { label: 'Mineur 9 (m9)', short: 'm9', semis: [0, 3, 7, 10, 14] },
+  sus4: { label: '7sus4 (quarte suspendue)', short: '7sus4', semis: [0, 5, 7, 10] },
+  sus2: { label: 'sus2 (seconde suspendue)', short: 'sus2', semis: [0, 2, 7] },
+  add9: { label: 'add9 (majeur + 9)', short: 'add9', semis: [0, 4, 7, 14] },
+  dom13: { label: 'Dominante 13 (13)', short: '13', semis: [0, 4, 10, 14, 21] },
+};
+/** modes du mineur mélodique (et leur accord) */
+export const MELODIC_MODES: Record<string, { label: string; tokens: string[]; char: string; chord: string }> = {
+  melodique: { label: 'Mineur mélodique', tokens: ['1', '2', 'b3', '4', '5', '6', '7'], char: '7', chord: 'm(maj7)' },
+  lydien_b7: { label: 'Lydien ♭7', tokens: ['1', '2', '3', '#4', '5', '6', 'b7'], char: '#4', chord: '7♯11' },
+  mixo_b6: { label: 'Mixolydien ♭6', tokens: ['1', '2', '3', '4', '5', 'b6', 'b7'], char: 'b6', chord: '7♭13' },
+  altere: { label: 'Altéré', tokens: ['1', 'b2', 'b3', '3', 'b5', 'b6', 'b7'], char: 'b2', chord: '7alt' },
+};

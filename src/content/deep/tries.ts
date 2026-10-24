@@ -201,6 +201,38 @@ export const TRIES: Record<string, TryStep[]> = {
       success: 'Le fa est le ♭2, un demi-ton au-dessus de la maison : il pèse sur elle. C\'est la couleur du phrygien.',
     },
   }],
+  dominantes_secondaires: [{
+    screen: 'Une dominante pour chaque accord',
+    try: {
+      kind: 'build', target: [2, 6, 9, 0],
+      prompt: 'Pour préparer sol, construis l\'accord de 7 sur ré (une quinte au-dessus de sol) : ré, fa♯, la, do.',
+      success: 'Ré 7 : son fa♯ monte vers sol. C\'est la dominante de la dominante, V7 de V.',
+    },
+  }],
+  extensions: [{
+    screen: 'Encore une tierce : la 9e',
+    try: {
+      kind: 'build', target: [0, 4, 7, 11, 2],
+      prompt: 'Sur do maj7 (do, mi, sol, si), ajoute encore une tierce de la gamme. Choisis les cinq notes.',
+      success: 'Ré : do maj9. La 9e est la 2e une octave plus haut, elle ouvre l\'accord.',
+    },
+  }],
+  conduite_voix: [{
+    screen: 'Les notes communes restent',
+    try: {
+      kind: 'play', target: [60, 64, 67, 60, 65, 69],
+      prompt: 'Joue do, mi, sol, puis fa majeur en bougeant le moins possible : garde do, puis cherche les notes les plus proches.',
+      success: 'Do, fa, la : do reste, mi glisse vers fa, sol vers la. Personne ne saute.',
+    },
+  }],
+  modes_melodique: [{
+    screen: 'Lydien ♭7 : le 4e mode',
+    try: {
+      kind: 'play', drone: 48, target: [66, 67, 70, 72],
+      prompt: 'Sur le bourdon de do, joue fa♯, sol, puis si♭, do. Écoute ces deux couleurs ensemble.',
+      success: 'Le ♯4 et le ♭7 : c\'est le lydien ♭7, le son de l\'accord 7♯11.',
+    },
+  }],
 };
 
 export const triesFor = (lessonId: string, screenTitle: string) => (TRIES[lessonId] ?? []).filter((x) => x.screen === screenTitle).map((x) => x.try);

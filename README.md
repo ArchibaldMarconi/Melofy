@@ -1,6 +1,6 @@
 # Melofy — version Expo (iOS, Expo Go)
 
-Le compagnon du musicien : Workout quotidien, Leçons, Pratique, Métronome, Accordeur et Profil.
+Le compagnon du musicien : Séance, Leçons, Jouer (métronome, accordeur, jam, entraînement ciblé) et Moi.
 Projet Expo SDK 58 (React Native 0.88), compatible **Expo Go** : aucun module natif hors d'Expo Go.
 
 ## Lancer sur ton iPhone
@@ -19,14 +19,14 @@ Si ton réseau bloque la connexion directe (Wi-Fi d'entreprise, partage de conne
 Au premier exercice au micro ou dans l'accordeur, iOS demande l'accès au micro pour Expo Go : accepte.
 Le son passe par le haut-parleur même en mode silencieux.
 
-## Les 6 pages (plan de l'appli)
+## Les 4 destinations
 
-1. **Workout** : bouton principal, durée de 10 à 30 min, 4 parties (révision SRS, ear training, mapping, perroquet) + module technique en option ; bouton distinct pour la leçon suivante ou en cours.
-2. **Leçons** : vue réduite sur la leçon en cours et les suivantes, « Afficher plus / moins » avant (historique validé) et après (programme à venir).
-3. **Pratique** : catalogue des exercices standards réglables (ear training, rythme, mapping, technique, improvisation).
-4. **Métronome** : tempo au clavier (20–300), signatures simples et composées, roue (tap tempo au centre, glisser haut/bas), automate (+N BPM toutes les X mesures, plafond facultatif), presets avec flèche d'accelerando, swing 50–75 %, mesures muettes pour le sens du rythme.
-5. **Accordeur** : jauge −50/+50 cents, mode chromatique, mode guidé avec sphères (verrouillage, passage auto à la corde suivante, note cible jouée au toucher), préréglages guitare, basse, violon, open et drop tunings, dernier accordage retenu.
-6. **Profil** : réglages et progression.
+1. **Séance** : un bouton. La séance du jour se compose seule à partir des leçons vues : échauffement (option), révision (une carte de révision par compétence), entendre, trouver, rejouer, créer, dans la tonalité du jour dès que les armures sont connues. Durée, module technique, instrument et voix se règlent dans Moi.
+2. **Leçons** : 27 leçons en 6 chapitres. Chaque leçon : écouter d'abord, « À toi d'essayer » (trouver avec les mains avant le nom), comprendre (illustrations jouables), pratiquer, valider. « Je connais déjà » passe directement à la validation.
+3. **Jouer** : métronome (visage simple, réglages avancés sur demande), accordeur (suit l'instrument et l'accordage), jam (accompagnement en boucle sur six grilles et six styles), entraînement ciblé en un toucher par domaine, et le catalogue réglable sous « Personnaliser ».
+4. **Moi** : la progression par compétence (oreille, instrument, lecture et théorie, rythme), les badges, et les réglages rangés par groupes.
+
+La difficulté de chaque exercice suit un escalier (plus dur après 3 réussites nettes, plus facile après un échec) et continue au-delà des niveaux écrits (tempo, longueur, toutes les tonalités, moins d'aide).
 
 ## Différences avec la version web de test
 
@@ -39,5 +39,5 @@ Le son passe par le haut-parleur même en mode silencieux.
 
 ```bash
 npx tsc --noEmit   # types
-npx jest           # 229 tests (contenu, moteur, métronome, accordeur)
+npx jest           # 236 tests (contenu, moteur, compétences, pédagogie, jam, métronome, accordeur)
 ```

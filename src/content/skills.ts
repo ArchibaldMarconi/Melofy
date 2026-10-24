@@ -57,6 +57,7 @@ export const SKILLS = {
   basses_instrument: { title: 'Lignes de basse', area: 'mains' },
   notes_cibles: { title: 'Notes cibles', area: 'mains' },
   improviser: { title: 'Improviser', area: 'mains' },
+  conduite_voix: { title: 'Conduite des voix', area: 'mains' },
 } as const satisfies Record<string, { title: string; area: Area }>;
 
 export type SkillId = keyof typeof SKILLS;
@@ -105,6 +106,10 @@ export const GENERATOR_SKILL: Record<GeneratorId, SkillId> = {
   grid_bass_play: 'basses_instrument', fifths_bass_play: 'basses_instrument',
   target_thirds: 'notes_cibles',
   qa_constraints: 'improviser', free_play: 'improviser',
+  secondary_dominant_identify: 'harmonie_oreille', secondary_dominant_build: 'construire_accords',
+  extension_quality: 'couleur_accords', build_extension: 'construire_accords',
+  melodic_mode_identify: 'modes_oreille', melodic_mode_theory: 'modes_theorie',
+  voice_leading_next: 'conduite_voix', guide_tone_line: 'notes_cibles', sight_read: 'lire_portee',
 };
 
 export const skillOf = (t: Pick<ExerciseTemplate, 'generator'>): SkillId => GENERATOR_SKILL[t.generator];

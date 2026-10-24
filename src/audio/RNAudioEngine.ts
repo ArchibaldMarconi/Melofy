@@ -164,6 +164,17 @@ export class ExpoAudioEngine implements AudioEngine {
 
   render(voice: SynthVoice, midi = 0): Float32Array { return this.synth.get(voice, midi); }
 
+  /** rend plusieurs couches d'événements (accompagnement de jam) en un tampon d'une durée exacte, pour boucler sans trou ;
+   *  ce qui dépasse la fin (résonance) est replié au début de la boucle */
+  renderLayers(layers: { notes: NoteEvent[]; voice: SynthVoice; volume: number }[], tempo: number, beats: number): Float32Array {
+    const len = Math.ceil((beatsToMs(beats, tempo) / 1000) * SR);
+    const out = new Float32Array(len + SR);
+    for (const l of layers) for (const e of l.notes) this.mixTone(out, beatsToMs(e.start, tempo) / 1000, e.midi, (beatsToMs(e.dur, tempo) / 1000) * 0.95, l.voice, l.volume);
+    const loop = out.slice(0, len);
+    for (let i = len; i < out.length && i - len < len; i++) loop[i - len] += out[i];
+    return loop;
+  }
+
   /** rend une piste de métronome (clics datés en secondes) : temps fort, temps, subdivisions plus douces */
   renderClicks(clicks: { t: number; kind: 'fort' | 'temps' | 'sub' }[], durS: number): Float32Array {
     const out = new Float32Array(Math.ceil(durS * SR));

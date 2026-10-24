@@ -1,4 +1,4 @@
-// Le cursus (0.20.0, modes en phase propre depuis 0.22.0, réordonné en 0.24.0) : 23 leçons, dans l'ordre de l'arbre. Chaque notion de l'arbre appartient à une leçon ;
+// Le cursus (0.20.0, modes en phase propre depuis 0.22.0, réordonné en 0.24.0, « pour aller plus loin » en 0.25.0) : 27 leçons, dans l'ordre de l'arbre. Chaque notion de l'arbre appartient à une leçon ;
 // une leçon s'ouvre quand les leçons dont elle découle sont validées.
 import { PALIER1 } from './palier1';
 import { PALIER2 } from './palier2';
@@ -6,6 +6,7 @@ import { PALIER3 } from './palier3';
 import { PALIER4 } from './palier4';
 import { PALIER5 } from './palier5';
 import { MODES_LESSONS } from './modes';
+import { ADVANCED_LESSONS } from './advanced';
 import type { DeepLesson } from './types';
 import type { Instrument } from '../types';
 
@@ -39,10 +40,15 @@ export const CURSUS_META: Record<string, { parents: string[]; concepts: string[]
   emprunts: { parents: ['mode_mixolydien'], concepts: ['emprunts', 'modulation'], phase: 5 },
   mode_lydien: { parents: ['emprunts'], concepts: [], phase: 5 },
   mode_phrygien: { parents: ['mode_dorien'], concepts: [], phase: 5 },
+  // 0.25.0 : « Pour aller plus loin », pour les musiciens confirmés
+  dominantes_secondaires: { parents: ['ii_v_i', 'quintes'], concepts: ['dominantes_secondaires'], phase: 6 },
+  extensions: { parents: ['ii_v_i'], concepts: ['extensions'], phase: 6 },
+  conduite_voix: { parents: ['ii_v_i'], concepts: ['conduite_voix'], phase: 6 },
+  modes_melodique: { parents: ['mode_lydien', 'mineurs'], concepts: ['modes_melodique'], phase: 6 },
 };
 export const CURSUS_ORDER = Object.keys(CURSUS_META);
 
-const ALL: DeepLesson[] = [...PALIER1, ...PALIER2, ...PALIER3, ...PALIER4, ...MODES_LESSONS, ...PALIER5];
+const ALL: DeepLesson[] = [...PALIER1, ...PALIER2, ...PALIER3, ...PALIER4, ...MODES_LESSONS, ...PALIER5, ...ADVANCED_LESSONS];
 export const DEEP_LESSONS: (DeepLesson & { parents: string[]; concepts: string[]; phase: Phase })[] = CURSUS_ORDER.map((id) => {
   const l = ALL.find((x) => x.id === id);
   if (!l) throw new Error(`leçon manquante : ${id}`);
@@ -51,7 +57,7 @@ export const DEEP_LESSONS: (DeepLesson & { parents: string[]; concepts: string[]
 export const deepLessonById = (id: string) => DEEP_LESSONS.find((l) => l.id === id);
 /** la leçon qui porte une notion de l'arbre */
 export const lessonOfConcept = (conceptId: string) => DEEP_LESSONS.find((l) => l.concepts.includes(conceptId));
-export const PHASE_LABEL: Record<number, string> = { 1: 'Premières victoires', 2: 'Fondations', 3: 'Couleurs', 4: 'Harmonie', 5: 'Les modes et leurs voisins' };
+export const PHASE_LABEL: Record<number, string> = { 1: 'Premières victoires', 2: 'Fondations', 3: 'Couleurs', 4: 'Harmonie', 5: 'Les modes et leurs voisins', 6: 'Pour aller plus loin' };
 export const PHASES = Object.keys(PHASE_LABEL).map(Number) as Phase[];
 
 /** Le cursus tel que le voit l'élève : au piano, la clé de fa (main gauche) arrive juste après la portée, en phase 2.

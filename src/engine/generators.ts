@@ -10,7 +10,7 @@ import {
 } from './music';
 import { alternatePicking, arpeggioPosition, chordShape, CHORD_SHAPES, pianoLeftFingering, pianoScaleFingering, scalePosition } from './positions';
 import { alteredLetters, applyKeySig, FLAT_NAMES, keyBySig, MAJOR_KEYS, nameInKey, referenceEvents, SHARP_NAMES } from './music';
-import { BORROWED, MODES, CADENCES, chordName, diatonicSeventh, DIATONIC7_ROMAN, scaleNote, SEVENTH_LABEL, SEVENTH_SEMI, DEG_SEMI, DIATONIC_QUALITY, DIATONIC_ROMAN, INTERVAL_LABEL, MAJOR, MINOR, MINOR_PENTA, TRIAD_LABEL, TRIAD_SEMI, tokenMelody, tokLabel, tokMidi, tokToItem, triadOf } from './chroma';
+import { BORROWED, EXTENSIONS, MELODIC_MODES, MODES, SECONDARY, CADENCES, chordName, diatonicSeventh, DIATONIC7_ROMAN, scaleNote, SEVENTH_LABEL, SEVENTH_SEMI, DEG_SEMI, DIATONIC_QUALITY, DIATONIC_ROMAN, INTERVAL_LABEL, MAJOR, MINOR, MINOR_PENTA, TRIAD_LABEL, TRIAD_SEMI, tokenMelody, tokLabel, tokMidi, tokToItem, triadOf } from './chroma';
 import { tunesFor, tuneDegreeSemis, TUNES } from '../content/tunes';
 import { maxLevel, resolveParams } from './difficulty';
 
@@ -383,8 +383,8 @@ export function generate(t: ExerciseTemplate, overrides: Params | undefined, see
       const accNotes = acc ? Array.from({ length: Math.ceil(n / 2) }, (_, k) => voice(acc[k % acc.length]).map((m) => ({ midi: m, start: k * 2, dur: 1.9 }))).flat() : [];
       if (acc) {
         return {
-          ...v, prompt: `Écoute la phrase de ${n} notes sur les accords, puis rejoue la mélodie seule.`, stimulus: lead, stimulusBacking: accNotes, stimulusKind: 'melody', referenceTonic: true, drone: null,
-          answerUI: 'sequence', expected: { kind: 'sequence', notes: mel.notes, checkRhythm: false, octaveAgnostic: true },
+          ...v, prompt: `${transcription ? 'Étape 1 sur 2 : écoute' : 'Écoute'} la phrase de ${n} notes sur les accords, puis rejoue la mélodie seule.`, stimulus: lead, stimulusBacking: accNotes, stimulusKind: 'melody', referenceTonic: true, drone: null,
+          answerUI: 'sequence', transcription, expected: { kind: 'sequence', notes: mel.notes, checkRhythm: false, octaveAgnostic: true },
           hint: `La mélodie est la voix du dessus ; elle commence sur le degré ${mel.degrees[0]}.`,
         };
       }
@@ -1930,5 +1930,128 @@ export function generate(t: ExerciseTemplate, overrides: Params | undefined, see
         hint: `Compte ${ecart} demi-tons en montant, touches noires comprises.`,
       };
     }
+
+    // ---------- Pour aller plus loin ----------
+    case 'secondary_dominant_identify': {
+      // I – X7 – cible – V – I : quel accord prépare la cible ? (un 7 de dominante, une quinte au-dessus d'elle)
+      const base = tonic >= 55 ? tonic - 12 : tonic;
+      const pool = (Array.isArray(p.secondaires) ? p.secondaires : ['V/V', 'V/vi']).map(String).filter((x) => SECONDARY[x]);
+      const items: QuizItem[] = Array.from({ length: nQ }, () => {
+        const k = pick(r, pool);
+        const sd = SECONDARY[k];
+        const dom = [0, 4, 7, 10].map((x) => base + sd.root + x);
+        const target = diatonicTriad(base, sd.target);
+        const chordsEv = [diatonicTriad(base, 1), dom, target, diatonicTriad(base, 5), diatonicTriad(base, 1)];
+        const stim = chordsEv.flatMap((c, i) => [...c.map((m) => ({ midi: m, start: i * 2, dur: 1.9 })), { midi: c[0] - 12, start: i * 2, dur: 1.9 }]);
+        return { stimulus: stim, tempo: 84, choices: pool.map((x) => choice(x, SECONDARY[x].label)), answerId: k };
+      });
+      return { ...v, prompt: 'Le 2e accord sonne « emprunté » et tire vers le 3e : quelle dominante secondaire est-ce ?', expected: { kind: 'quiz', items },
+        hint: 'Écoute vers quel accord il se résout : une quinte plus bas. V7 de V va vers sol (en do), V7 de vi vers la mineur.' };
+    }
+    case 'secondary_dominant_build': {
+      // construire V7 de X : la 7e de dominante une quinte au-dessus de X
+      const key = keyFrom(p, r);
+      const keyPc = KEY_PC[key] ?? 0;
+      const pool = (Array.isArray(p.secondaires) ? p.secondaires : ['V/V', 'V/vi', 'V/IV', 'V/ii']).map(String).filter((x) => SECONDARY[x]);
+      const k = pick(r, pool);
+      const rootPc = (keyPc + SECONDARY[k].root) % 12;
+      let root = 60; while (mod12(root) !== rootPc) root++;
+      const targetName = pcName(keyPc + DIATONIC_SEMI_OF(SECONDARY[k].target));
+      return { ...v, tonic: root, prompt: `En ${KEY_LABEL[key] ?? 'do'} majeur, construis la dominante de ${targetName} (V7 de ${k.split('/')[1]}).`, answerUI: 'select',
+        expected: { kind: 'set', midis: [0, 4, 7, 10].map((x) => root + x), octaveAgnostic: true },
+        hint: `La dominante est une quinte au-dessus de ${targetName} : ${pcName(root)}. Un accord de 7 : tierce majeure, quinte juste, 7e mineure.` };
+    }
+    case 'extension_quality': {
+      const quals = (Array.isArray(p.qualites) ? p.qualites : ['maj9', 'dom9', 'sus4']).map(String).filter((x) => EXTENSIONS[x]);
+      const items: QuizItem[] = Array.from({ length: nQ }, () => {
+        const q = pick(r, quals);
+        const root = tonic - 12 + randInt(r, 0, 7);
+        return { stimulus: blockAndArp(EXTENSIONS[q].semis.map((x) => root + x)), tempo: 92, choices: quals.map((x) => choice(x, EXTENSIONS[x].label)), answerId: q };
+      });
+      return { ...v, prompt: 'Quelle couleur d\'accord entends-tu ?', expected: { kind: 'quiz', items },
+        hint: 'maj9 : doux et lumineux. 9 : dominante, mais plus riche. m9 : mineur velouté. sus : pas de tierce, ni majeur ni mineur, en suspens.' };
+    }
+    case 'build_extension': {
+      const quals = (Array.isArray(p.qualites) ? p.qualites : ['maj9', 'dom9', 'm9', 'sus4']).map(String).filter((x) => EXTENSIONS[x]);
+      const q = pick(r, quals);
+      const root = pick(r, naturalsBetween(60, 67));
+      return { ...v, tonic: root, prompt: `Construis l'accord ${pcName(root)} ${EXTENSIONS[q].short}.`, answerUI: 'select',
+        expected: { kind: 'set', midis: EXTENSIONS[q].semis.map((x) => root + x), octaveAgnostic: true },
+        hint: q.startsWith('sus') ? `Pas de tierce : la ${q === 'sus4' ? 'quarte' : 'seconde'} la remplace.` : `L'accord de 7e d'abord, puis la 9e : un ton au-dessus de la fondamentale (une octave plus haut).` };
+    }
+    case 'melodic_mode_identify': {
+      const pool = (Array.isArray(p.modes) ? p.modes : ['melodique', 'lydien_b7', 'altere']).map(String).filter((x) => MELODIC_MODES[x]);
+      const items: QuizItem[] = Array.from({ length: nQ }, () => {
+        const m = pick(r, pool);
+        const mel = tokenMelody(r, tonic, MELODIC_MODES[m].tokens, 6, { conjoint: true, endOnTonic: true });
+        const tk = [...mel.tokens]; tk[2] = MELODIC_MODES[m].char; tk[4] = MELODIC_MODES[m].char;
+        const notes = mel.notes.map((n, i) => ({ ...n, midi: tokMidi(tonic, tk[i]) }));
+        const scale = (x: string) => { const up = [...MELODIC_MODES[x].tokens, '8'].map((t2) => tonic + DEG_SEMI[t2]); return up.map((midi, i) => ({ midi, start: i * 0.5, dur: 0.48 })); };
+        return { stimulus: notes, tempo: 90, choices: pool.map((x) => ({ ...choice(x, MELODIC_MODES[x].label), ...(bool(p.apercus, true) ? { preview: scale(x) } : {}) })), answerId: m };
+      });
+      return { ...v, drone: droneFor(tonic), prompt: 'Sur ce bourdon, quel mode du mineur mélodique ? (▶ pour écouter chaque mode)', expected: { kind: 'quiz', items },
+        hint: 'Mineur mélodique : mineur avec 6 et 7 naturels. Lydien ♭7 : majeur avec ♯4 et ♭7. Altéré : tout bouge (♭9, ♯9, ♭5, ♯5).' };
+    }
+    case 'melodic_mode_theory': {
+      const keys = Object.keys(MELODIC_MODES);
+      const items: QuizItem[] = Array.from({ length: nQ }, () => {
+        const m = pick(r, keys);
+        if (r() < 0.5) {
+          return { stimulus: [], tempo, display: { kind: 'text', text: `Sur un accord ${MELODIC_MODES[m].chord}, quel mode ?` }, choices: shuffle(r, keys).map((x) => choice(x, MELODIC_MODES[x].label)), answerId: m };
+        }
+        return { stimulus: [], tempo, display: { kind: 'text', text: MELODIC_MODES[m].tokens.map(tokLabel).join(' ') }, choices: shuffle(r, keys).map((x) => choice(x, MELODIC_MODES[x].label)), answerId: m };
+      });
+      return { ...v, prompt: 'Les modes du mineur mélodique, et leur accord.', expected: { kind: 'quiz', items },
+        hint: 'Le mineur mélodique depuis son 4e degré donne le lydien ♭7 (accord 7♯11) ; depuis son 7e, l\'altéré (accord 7alt).' };
+    }
+    case 'voice_leading_next': {
+      // une triade posée, puis l'accord suivant : trouve son renversement le plus proche (chaque voix bouge le moins possible)
+      const base = 60;
+      const degs = [1, 4, 5, 6, 2];
+      const from = pick(r, degs);
+      const to = pick(r, degs.filter((d) => d !== from));
+      const inv = (notes: number[], k: number) => { const n = [...notes]; for (let i = 0; i < k; i++) n.push(n.shift()! + 12); return n; };
+      const start = inv(diatonicTriad(base, from), randInt(r, 0, 2)).map((m) => (m > 76 ? m - 12 : m));
+      const cands = [0, 1, 2].flatMap((k) => [-12, 0].map((o) => inv(diatonicTriad(base, to), k).map((m) => m + o))).filter((c) => Math.min(...c) >= 52 && Math.max(...c) <= 79);
+      const cost = (c: number[]) => [...c].sort((a, b) => a - b).reduce((s2, m, i) => s2 + Math.abs(m - [...start].sort((a, b) => a - b)[i]), 0);
+      const best = cands.sort((a, b) => cost(a) - cost(b))[0];
+      return { ...v, tonic: base, prompt: `La portée montre l'accord ${DIATONIC_ROMAN[from]} (en do). Choisis ${DIATONIC_ROMAN[to]} en bougeant le moins possible chaque note.`, answerUI: 'select',
+        stimulus: start.map((m) => ({ midi: m, start: 0, dur: 2 })), stimulusKind: 'melody',
+        display: { kind: 'staff', midis: [...start].sort((a, b) => a - b) },
+        // à la guitare, le manche à l'écran ne permet pas de choisir une position précise : on vérifie les notes
+        expected: { kind: 'set', midis: best, octaveAgnostic: ctx.instrument === 'guitare' },
+        hint: 'Garde les notes communes aux deux accords ; les autres bougent d\'un ton ou d\'un demi-ton.' };
+    }
+    case 'guide_tone_line': {
+      // ii – V – I : la ligne des notes-guides (3 et 7) qui descend doucement d'un accord à l'autre
+      const base = tonic >= 55 ? tonic : tonic + 12;
+      const from7 = r() < 0.5;
+      // départ sur la 3e de ii : 3(ii) → 7(V) → 3(I) ; départ sur la 7e de ii : 7(ii) → 3(V) → 7(I)
+      const line = from7 ? [base + 12, base + 11, base + 11] : [base + 5, base + 5, base + 4];
+      const sept = [2, 5, 1].flatMap((d, b) => diatonicSeventh(base - 12, d).flatMap((m) => [0, 2].map((k) => ({ midi: m, start: b * 4 + k, dur: 1.8 }))));
+      return { ...v, prompt: `Sur ii – V – I, joue la ligne des notes-guides : ${from7 ? '7, 3, 7' : '3, 7, 3'}, une note par accord, au 1er temps.`, stimulus: sept, stimulusKind: 'melody',
+        display: { kind: 'text', text: `${DIATONIC7_ROMAN[2]}  |  ${DIATONIC7_ROMAN[5]}  |  ${DIATONIC7_ROMAN[1]}` },
+        countInBeats: 4, clickDuringCapture: true, simultaneous: true, captureMs: beatsToMs(12, tempo) + 600, answerUI: 'sequence',
+        expected: { kind: 'sequence', notes: line.map((m, b) => ({ midi: m, start: b * 4, dur: 1 })), checkRhythm: true, octaveAgnostic: true },
+        hint: from7 ? 'La 7e de ii descend d\'un demi-ton : c\'est la 3e de V, qui reste : c\'est la 7e de I.' : 'La 3e de ii reste : c\'est la 7e de V, qui descend d\'un demi-ton vers la 3e de I.' };
+    }
+    case 'sight_read': {
+      // lecture à vue : des notes ET un rythme, au métronome ; la hauteur et le moment comptent
+      const n = num(p.mesures, 1);
+      const perBar = 4;
+      const figs = (Array.isArray(p.figures) ? p.figures : ['noire', 'blanche', 'croches']) as unknown as RhythmSymbol[];
+      const rb = makeRhythmBars(r, n, figs.filter((f) => f !== 'soupir' || n > 1), perBar);
+      const pool = naturalsBetween(num(p.de, 60), num(p.a, 72));
+      const conj = (prev: number) => pool.filter((m) => Math.abs(pool.indexOf(m) - pool.indexOf(prev)) <= 2);
+      const midis: number[] = [];
+      for (let i = 0; i < rb.onsets.length; i++) midis.push(pick(r, i ? conj(midis[i - 1]) : pool));
+      return { ...v, perBar, prompt: `Lis et joue en rythme : ${rb.onsets.length} notes, après le décompte.`,
+        display: { kind: 'staffRhythm', midis, items: rb.items, perBar },
+        countInBeats: perBar, clickDuringCapture: true, simultaneous: true, captureMs: beatsToMs(rb.total, tempo) + 600, answerUI: 'sequence',
+        expected: { kind: 'sequence', notes: rb.onsets.map((o, i) => ({ midi: midis[i], start: o, dur: 0.5 })), checkRhythm: true, octaveAgnostic: true },
+        hint: `Lis d'abord le rythme en comptant (${countingHint(rb.items, perBar)}), puis la 1re note : ${pcName(midis[0])}.` };
+    }
   }
 }
+
+const DIATONIC_SEMI_OF = (d: number) => [0, 2, 4, 5, 7, 9, 11][(d - 1) % 7];

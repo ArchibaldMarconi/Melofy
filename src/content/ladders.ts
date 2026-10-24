@@ -40,6 +40,9 @@ export const LADDERS: Record<LadderPart, LadderEntry[]> = {
     { lesson: 'emprunts', templateId: 'OR-5-03' },
     { lesson: 'emprunts', templateId: 'OR-5-05' },
     { lesson: 'impaires', templateId: 'RY-5-03', params: { questions: 4 } },
+    { lesson: 'dominantes_secondaires', templateId: 'OR-6-01', params: { questions: 4 } },
+    { lesson: 'extensions', templateId: 'OR-6-02', params: { questions: 4 } },
+    { lesson: 'modes_melodique', templateId: 'OR-6-03', params: { questions: 4 } },
   ],
   // ---------- 3. Mapping : l'appli affiche, tu joues ----------
   mapping: [
@@ -66,6 +69,11 @@ export const LADDERS: Record<LadderPart, LadderEntry[]> = {
     { lesson: 'mode_lydien', templateId: 'TE-5-01', params: { tokens: ['1', '2', '3', '#4', '5', '6', '7', '8', '7', '6', '5', '#4', '3', '2', '1'] } },
     { lesson: 'mode_phrygien', templateId: 'TE-5-01', params: { tokens: ['1', 'b2', 'b3', '4', '5', 'b6', 'b7', '8', 'b7', 'b6', '5', '4', 'b3', 'b2', '1'] } },
     { lesson: 'emprunts', templateId: 'TE-5-05' }, // arpèges avec accord emprunté
+    { lesson: 'portee', templateId: 'TE-2-16', params: { figures: ['noire'], mesures: 1 } }, // lecture à vue en rythme
+    { lesson: 'dominantes_secondaires', templateId: 'TH-6-01' },
+    { lesson: 'extensions', templateId: 'TH-6-02' },
+    { lesson: 'conduite_voix', templateId: 'TE-6-02' },
+    { lesson: 'modes_melodique', templateId: 'TE-6-01' },
   ],
   // ---------- 4. Perroquet : l'appli joue, tu rejoues ----------
   perroquet: [
@@ -92,5 +100,7 @@ export const LADDERS: Record<LadderPart, LadderEntry[]> = {
     { lesson: 'mode_phrygien', templateId: 'IM-5-01', params: { degres: ['1', 'b2', 'b3', '4', '5', 'b6', 'b7'] } },
     { lesson: 'emprunts', templateId: 'PQ-3-01', params: { grilles: ['I-vi-IV-V', 'I-V-vi-IV', 'I-ii-V-I'] } },
     { lesson: 'impaires', templateId: 'RY-5-02' },
+    { lesson: 'ii_v_i', templateId: 'RP-4-01' }, // repiquer une phrase plus longue
+    { lesson: 'conduite_voix', templateId: 'TE-6-03' },
   ],
 };

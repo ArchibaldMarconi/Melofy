@@ -356,6 +356,24 @@ const P: LessonPoint[] = [
     { text: 'Transcrire, c\'est écrire ce que tu as entendu. Ici, en degrés (1 à 7) avec une durée pour chaque note.' },
     { text: 'Choisis d\'abord la durée (croche, noire, blanche), puis touche le degré : la note s\'ajoute à ta réponse. ⌫ efface la dernière.' },
   ] },
+  { id: 'dominante_secondaire', title: 'La dominante d\'un accord', astuce: 'Cherche l\'accord qui suit : la dominante secondaire est un accord de 7 une quinte au-dessus de lui.', steps: [
+    { text: 'V7 prépare I. De la même façon, chaque accord de la gamme peut être préparé par sa propre dominante : V7 de V (ré 7 vers sol en do), V7 de vi (mi 7 vers la mineur).' },
+    { text: 'On l\'entend comme un accord « emprunté » qui tire fort vers le suivant : sa tierce est une note étrangère à la gamme, qui monte d\'un demi-ton.' },
+  ] },
+  { id: 'extensions', title: '9, sus et 13', astuce: 'Une 9e, c\'est la 2e une octave plus haut ; un sus, c\'est un accord sans tierce.', steps: [
+    { text: 'Au-delà de la 7e, on continue d\'empiler des tierces : 9 (la 2e), 11 (la 4e), 13 (la 6e), une octave plus haut. Elles enrichissent la couleur sans changer la fonction.' },
+    { text: 'sus4 et sus2 remplacent la tierce par la quarte ou la seconde : ni majeur ni mineur, l\'accord reste en suspens.' },
+  ] },
+  { id: 'modes_melodique', title: 'Le mineur mélodique et ses modes', astuce: 'Lydien ♭7 = majeur avec ♯4 et ♭7 ; altéré = tout ce qui peut bouger a bougé.', steps: [
+    { text: 'Le mineur mélodique (mineur avec 6 et 7 naturels) donne d\'autres modes. Depuis son 4e degré : le lydien ♭7, pour l\'accord 7♯11. Depuis son 7e : l\'altéré, pour l\'accord 7alt.' },
+  ] },
+  { id: 'conduite_voix', title: 'Bouger le moins possible', astuce: 'Garde d\'abord les notes communes ; le reste glisse d\'un ton ou d\'un demi-ton.', steps: [
+    { text: 'Entre deux accords, on choisit le renversement où chaque note bouge le moins. Les notes communes restent en place, les autres vont à la note la plus proche.' },
+    { text: 'Sur ii – V – I, les notes-guides (3 et 7) forment une ligne qui descend doucement : la 7e d\'un accord devient la 3e du suivant.' },
+  ] },
+  { id: 'lecture_a_vue', title: 'Lire à vue en rythme', astuce: 'Lis le rythme d\'abord en comptant, puis repère la 1re note ; ensuite, ne t\'arrête plus.', steps: [
+    { text: 'Lire à vue, c\'est jouer sans s\'arrêter : le rythme compte autant que les notes. Compte la mesure pendant le décompte, puis garde la pulsation même si une note est fausse.' },
+  ] },
 ];
 
 export const LESSON_POINTS: Record<string, LessonPoint> = Object.fromEntries(P.map((p) => [p.id, p]));

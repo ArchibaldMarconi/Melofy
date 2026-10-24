@@ -14,6 +14,7 @@ import { DeepLessonScreen } from './src/screens/DeepLessonScreen';
 import { MetronomeScreen } from './src/screens/MetronomeScreen';
 import { TunerScreen } from './src/screens/TunerScreen';
 import { FocusScreen } from './src/screens/FocusScreen';
+import { JamScreen } from './src/screens/JamScreen';
 import { StatusBar } from 'expo-status-bar';
 import { isDark } from './src/theme';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -71,6 +72,7 @@ export default function App() {
           <Stack.Screen name="Focus" component={FocusScreen} options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="Metronome" component={MetronomeScreen} options={{ ...toolHeader, title: 'Métronome' }} />
           <Stack.Screen name="Accordeur" component={TunerScreen} options={{ ...toolHeader, title: 'Accordeur' }} />
+          <Stack.Screen name="Jam" component={JamScreen} options={{ ...toolHeader, title: 'Jam' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

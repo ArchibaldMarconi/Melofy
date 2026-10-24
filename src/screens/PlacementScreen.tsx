@@ -16,6 +16,8 @@ import { Button } from '../components/Button';
 import { colors, domainColor, type } from '../theme';
 
 type Phase = 'intro' | 'run' | 'done';
+/** au plus 5 questions par domaine : le test reste court, même pour un musicien avancé */
+const MAX_PER_DOMAIN = 5;
 type Results = Record<PlacementDomain, Record<number, boolean>>;
 const emptyResults = (): Results => ({ rythme: {}, oreille: {}, theorie: {}, technique: {} });
 
@@ -42,12 +44,13 @@ export function PlacementScreen() {
   };
   const start = () => { results.current = emptyResults(); setCount(1); startDomain(0); setPhase('run'); };
   const record = (success: boolean) => { if (current !== null) results.current[domain][current] = success; };
+  const nextDomain = () => { if (d + 1 < PLACEMENT_DOMAINS.length) startDomain(d + 1); else setPhase('done'); };
   const next = () => {
-    const k = nextProbe(results.current[domain], profile!, probes.length);
+    const tested = Object.keys(results.current[domain]).length;
+    const k = tested >= MAX_PER_DOMAIN ? null : nextProbe(results.current[domain], profile!, probes.length);
     setCount((c) => c + 1);
     if (k !== null) { setCurrent(k); return; }
-    if (d + 1 < PLACEMENT_DOMAINS.length) startDomain(d + 1);
-    else setPhase('done');
+    nextDomain();
   };
   const reachedTitle = (dom: PlacementDomain) => {
     const k = highestPassed(results.current[dom]);
@@ -88,6 +91,9 @@ export function PlacementScreen() {
         <View style={styles.progress}>
           <Text style={[styles.domainTag, { color: domainColor[domain] }]}>{PLACEMENT_LABEL[domain]} · domaine {d + 1}/4</Text>
           <Text style={type.small}>{reached ? `Acquis : ${reached.title}` : 'On cherche ton niveau…'}</Text>
+          <Pressable onPress={nextDomain} accessibilityRole="button" style={{ paddingVertical: 6 }}>
+            <Text style={[type.small, { fontWeight: '800', textDecorationLine: 'underline' }]}>Passer ce domaine</Text>
+          </Pressable>
         </View>
         <ExercisePlayer
           key={`${domain}-${current}-${count}`} placement template={templateById(probe.templateId)} params={probe.params} seed={seed.current + count} inSession={false}

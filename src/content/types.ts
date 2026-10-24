@@ -75,7 +75,9 @@ export type GeneratorId =
   | 'triad_theory' | 'key_sig_identify' | 'key_sig_listen' | 'key_sig_scale'
   | 'name_play' | 'bass_echo' | 'one_string_scale' | 'five_finger' | 'hands_together'
   | 'interval_theory' | 'interval_play' | 'minor_type_identify' | 'minor_scale_play' | 'sing_tokens' | 'function_family'
-  | 'grid_bass_play' | 'circle_theory' | 'fifths_bass_play' | 'borrowed_origin' | 'progression_arpeggio_play' | 'mode_parent';
+  | 'grid_bass_play' | 'circle_theory' | 'fifths_bass_play' | 'borrowed_origin' | 'progression_arpeggio_play' | 'mode_parent'
+  | 'secondary_dominant_identify' | 'secondary_dominant_build' | 'extension_quality' | 'build_extension'
+  | 'melodic_mode_identify' | 'melodic_mode_theory' | 'voice_leading_next' | 'guide_tone_line' | 'sight_read';
 
 export interface ExerciseTemplate {
   id: string;
@@ -112,7 +114,9 @@ export type Display =
   | { kind: 'degreeStaff'; degree: number; top: number }
   | { kind: 'grid'; bars: string[] }
   | { kind: 'instrumentNote'; midi: number; string?: number; fret?: number }
-  | { kind: 'staff'; midis: number[]; clef?: 'sol' | 'fa'; /** armure : + dièses, − bémols */ keySig?: number };
+  | { kind: 'staff'; midis: number[]; clef?: 'sol' | 'fa'; /** armure : + dièses, − bémols */ keySig?: number }
+  /** lecture à vue : le rythme écrit au-dessus des notes de la portée (une note par attaque) */
+  | { kind: 'staffRhythm'; midis: number[]; items: RhythmSymbol[]; perBar: number };
 
 export interface QuizItem {
   stimulus: NoteEvent[];

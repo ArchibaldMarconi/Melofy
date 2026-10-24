@@ -301,6 +301,22 @@ export const CONCEPTS: Concept[] = [
       { text: 'Sur un bourdon, un mode se fait entendre par sa note caractéristique : pose-la sur les temps forts et termine tes phrases sur 1. Le reste de la gamme sert de chemin.' },
     ],
   },
+  {
+    id: 'dominantes_secondaires', title: 'Les dominantes secondaires', palier: 6, unite: '6.1', prerequis: ['ii_v_i', 'cadences'],
+    lecon: [{ text: 'Chaque accord de la gamme peut avoir sa propre dominante : un accord de 7 une quinte au-dessus de lui, qui le prépare comme V prépare I.' }],
+  },
+  {
+    id: 'extensions', title: 'Accords enrichis : 9, sus, 13', palier: 6, unite: '6.2', prerequis: ['accords_7'],
+    lecon: [{ text: 'On continue d\'empiler des tierces au-delà de la 7e : 9, 11, 13. Les accords « sus » remplacent la tierce par la quarte ou la seconde.' }],
+  },
+  {
+    id: 'modes_melodique', title: 'Les modes du mineur mélodique', palier: 6, unite: '6.3', prerequis: ['modes', 'mineur_relatif'],
+    lecon: [{ text: 'Le mineur mélodique a lui aussi sept points de départ. Deux sont partout en jazz : le lydien ♭7 (accord 7♯11) et l\'altéré (accord 7alt).' }],
+  },
+  {
+    id: 'conduite_voix', title: 'La conduite des voix', palier: 6, unite: '6.4', prerequis: ['accords_7', 'triades'],
+    lecon: [{ text: 'D\'un accord au suivant, chaque note bouge le moins possible : les notes communes restent, les autres glissent d\'un ton ou d\'un demi-ton.' }],
+  },
 ];
 
 export const conceptById = (id: string) => CONCEPTS.find((c) => c.id === id);

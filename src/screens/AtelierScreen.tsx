@@ -82,6 +82,7 @@ export function AtelierScreen() {
         <View style={styles.tools}>
           <Tool glyph="♩" title="Métronome" onPress={() => nav.navigate('Metronome')} />
           <Tool glyph="⋔" title="Accordeur" onPress={() => nav.navigate('Accordeur')} />
+          <Tool glyph="♫" title="Jam" onPress={() => nav.navigate('Jam')} />
         </View>
 
         <Text style={styles.section}>Entraînement ciblé</Text>
@@ -147,6 +148,7 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const [posGuide, setPosGuide] = useState<string[]>(['complet']);
   const [posTempo, setPosTempo] = useState<number[]>([0]);
   const [parrotScale, setParrotScale] = useState<string[]>(['penta_mineure']);
+  const [sightLevel, setSightLevel] = useState<string[]>(['1']);
   // réglages de l'instrument
   const [d, setD] = useState<Omit<DrillConfig, 'kind'>>({ ...DEFAULT_DRILL, notation: st.settings.chordNotation ?? 'maj7' });
   const set = (patch: Partial<Omit<DrillConfig, 'kind'>>) => setD((x) => ({ ...x, ...patch }));
@@ -264,6 +266,15 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
             });
           }} />
           {instrument === 'guitare' ? <Button variant="contour" color={tc} label="Formes d'accords" onPress={() => ear('TE-3-06', { accords: ['majeur', 'mineur', 'dom7', 'maj7', 'm7'], guide: posGuide[0] })} /> : null}
+        </Card>
+
+        <Text style={[styles.section, { color: domainColor.theorie }]}>Lecture</Text>
+        <Card title="Lecture à vue en rythme" line="Notes et rythme, au métronome, sans t'arrêter" color={domainColor.theorie} open={open === 'sight'} onToggle={() => toggle('sight')}>
+          <Chips options={[['1', 'Noires'], ['2', '+ blanches et croches'], ['3', '+ silences et syncopes']]} value={sightLevel} onChange={setSightLevel} multi={false} color={domainColor.theorie} />
+          <Button color={domainColor.theorie} label="Lancer" onPress={() => ear('TE-2-16', sightLevel[0] === '1'
+            ? { mesures: 1, figures: ['noire'], tempo: 60, de: 60, a: 67 }
+            : sightLevel[0] === '2' ? { mesures: 2, figures: ['noire', 'blanche', 'croches'], tempo: 70, de: 57, a: 76 }
+            : { mesures: 2, figures: ['noire', 'croches', 'soupir', 'syncope'], tempo: 80, de: 55, a: 79 })} />
         </Card>
 
         <Text style={[styles.section, { color: ic }]}>Improvisation</Text>

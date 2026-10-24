@@ -20,10 +20,10 @@ const wk = (p: LessonProgress, o: Partial<Parameters<typeof buildWorkout>[0]> = 
 });
 const orderOf = (id: string) => DEEP_LESSONS.findIndex((l) => l.id === id);
 
-describe('cursus : 23 leçons, chaque notion rattachée', () => {
-  test('23 leçons, ids uniques, parents connus et placés avant', () => {
-    expect(DEEP_LESSONS).toHaveLength(23);
-    expect(new Set(DEEP_LESSONS.map((l) => l.id)).size).toBe(23);
+describe('cursus : 27 leçons, chaque notion rattachée', () => {
+  test('27 leçons, ids uniques, parents connus et placés avant', () => {
+    expect(DEEP_LESSONS).toHaveLength(27);
+    expect(new Set(DEEP_LESSONS.map((l) => l.id)).size).toBe(27);
     for (const l of DEEP_LESSONS) for (const par of l.parents) {
       expect(CURSUS_META[par]).toBeDefined();
       expect(orderOf(par)).toBeLessThan(orderOf(l.id));
@@ -43,7 +43,7 @@ describe('cursus : 23 leçons, chaque notion rattachée', () => {
   test('tout est atteignable depuis les deux départs (1 et 4)', () => {
     const done: string[] = [];
     for (let k = 0; k < 30; k++) for (const l of DEEP_LESSONS) if (!done.includes(l.id) && l.parents.every((x) => done.includes(x))) done.push(l.id);
-    expect(done).toHaveLength(23);
+    expect(done).toHaveLength(27);
     expect(DEEP_LESSONS.filter((l) => !l.parents.length).map((l) => l.id).sort()).toEqual(['fondations', 'mesure']);
   });
   test('les nouvelles leçons R1, R2, R3 et 5b sont complètes (5 écrans, découverte ou illustration rythmique)', () => {
@@ -51,6 +51,15 @@ describe('cursus : 23 leçons, chaque notion rattachée', () => {
       const l = DEEP_LESSONS.find((x) => x.id === id)!;
       expect(l.provisional).toBeFalsy();
       expect(l.screens.length).toBeGreaterThanOrEqual(5);
+    }
+  });
+  test('« pour aller plus loin » : 4 leçons complètes en phase 6, après les harmonies et les modes', () => {
+    for (const id of ['dominantes_secondaires', 'extensions', 'conduite_voix', 'modes_melodique']) {
+      const l = DEEP_LESSONS.find((x) => x.id === id)!;
+      expect(l.phase).toBe(6);
+      expect(l.discover).toBeTruthy();
+      expect(l.screens.length).toBeGreaterThanOrEqual(6);
+      expect(l.practice.length).toBeGreaterThanOrEqual(3);
     }
   });
   test('plus aucune leçon provisoire ; 9 à 19 ont une découverte et au moins 7 écrans', () => {
@@ -314,7 +323,7 @@ describe('0.24.0 : ordre pédagogique revu', () => {
     const between = DEEP_LESSONS.slice(orderOf('mode_mixolydien') + 1, orderOf('mode_lydien')).map((l) => l.id);
     expect(between).toEqual(['impaires', 'emprunts']);
     expect(CURSUS_META.mode_lydien.parents).toEqual(['emprunts']);
-    expect(Object.keys(PHASE_LABEL)).toHaveLength(5);
+    expect(Object.keys(PHASE_LABEL)).toHaveLength(6);
   });
   test('bourdon sur la tonique pendant les exercices de degrés de la phase 1', () => {
     for (const id of ['OR-1-06', 'OR-2-01', 'OR-1-17', 'OR-1-18', 'OR-2-14']) {
