@@ -1,24 +1,24 @@
-// Onglet Leçons (0.22.0) : uniquement les leçons. Leurs exercices nourrissent la révision du workout (0.24.0).
-// Vue allégée par défaut : la prochaine leçon, puis les leçons en cours et les 3 suivantes ; les leçons validées et
-// celles plus lointaines sont masquées, et « Afficher tout le cursus » montre les 23 leçons rangées par phase.
+// Onglet Leçons : la prochaine leçon en grand, puis les leçons en cours et les suivantes ; les leçons faites et les
+// plus lointaines sont repliées. Trois états pour l'élève : nouvelle, en cours, maîtrisée (plus « verrouillée »).
+// La confirmation dans les séances reste interne : une leçon validée est « en cours » jusqu'à ce qu'elle soit retenue.
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DEEP_LESSONS, PHASE_LABEL, lessonsFor } from '../content/deep';
-import { confirmProgress, lessonState, lessonsToDiscover, type LessonState } from '../engine/cursus';
+import { lessonState, lessonsToDiscover, type LessonState } from '../engine/cursus';
 import { lessonProgressOf, useUserStore } from '../store/useUserStore';
 import { colors, type } from '../theme';
 import type { RootStackParamList } from './navigation';
 
 const ACCENT = '#E0457B';
 const STATE: Record<LessonState, { label: string; color: string; glyph?: string }> = {
-  verrouillee: { label: 'Verrouillée', color: colors.inkSoft, glyph: '🔒' },
-  ouverte: { label: 'À découvrir', color: ACCENT },
-  vue: { label: 'Vue · à valider', color: colors.primary },
-  validee: { label: 'Validée · à confirmer en séance', color: colors.success, glyph: '✓' },
-  confirmee: { label: 'Confirmée', color: colors.gold, glyph: '★' },
+  verrouillee: { label: 'Plus tard', color: colors.inkSoft, glyph: '🔒' },
+  ouverte: { label: 'Nouvelle', color: ACCENT },
+  vue: { label: 'En cours', color: colors.primary },
+  validee: { label: 'En cours · se consolide dans tes séances', color: colors.success, glyph: '✓' },
+  confirmee: { label: 'Maîtrisée', color: colors.gold, glyph: '★' },
 };
 /** leçons montrées dans la vue allégée : les 4 premières non validées (la prochaine et les 3 suivantes), plus toute leçon vue */
 const AHEAD = 4;
@@ -38,7 +38,6 @@ export function TreeScreen() {
   const toValidate = LESSONS.find((l) => states[l.id] === 'vue');
   const isDone = (id: string) => states[id] === 'validee' || states[id] === 'confirmee';
   const doneCount = LESSONS.filter((l) => isDone(l.id)).length;
-  const toConfirm = LESSONS.filter((l) => states[l.id] === 'validee').length;
   const pending = LESSONS.filter((l) => !isDone(l.id));
   const ahead = new Set([...pending.slice(0, AHEAD).map((l) => l.id), ...pending.filter((l) => states[l.id] === 'vue').map((l) => l.id)]);
   const shown = LESSONS.filter((l) => ahead.has(l.id));
@@ -50,18 +49,17 @@ export function TreeScreen() {
     const meta = STATE[s];
     const locked = s === 'verrouillee';
     const parents = l.parents.map((x) => LESSONS.find((y) => y.id === x)!).filter((x) => !isDone(x.id));
-    const cp = s === 'validee' ? confirmProgress(l, progress, settings.instrument) : null;
     return (
       <Pressable key={l.id} onPress={() => nav.navigate('DeepLesson', { id: l.id })} accessibilityRole="button"
-        accessibilityLabel={`Leçon approfondie ${l.number} : ${l.title}, ${meta.label}`}
+        accessibilityLabel={`Leçon ${l.number} : ${l.title}, ${meta.label}`}
         style={({ pressed }) => [styles.lesson, { borderLeftColor: meta.color }, locked && { opacity: 0.75 }, pressed && { opacity: 0.85 }]}>
         <View style={[styles.num, { borderColor: meta.color }, isDone(l.id) && { backgroundColor: meta.color }]}>
           <Text style={[styles.numText, { color: isDone(l.id) ? colors.onFill : meta.color }]}>{meta.glyph && s !== 'verrouillee' ? meta.glyph : l.number}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          {withPhase ? <Text style={styles.lessonPhase}>Phase {l.phase} · {PHASE_LABEL[l.phase]}</Text> : null}
+          {withPhase ? <Text style={styles.lessonPhase}>Chapitre {l.phase} · {PHASE_LABEL[l.phase]}</Text> : null}
           <Text style={type.title}>{l.title}</Text>
-          <Text style={[styles.state, { color: meta.color }]}>{locked ? `🔒 Après : ${parents.map((x) => `${x.number}. ${x.title}`).join(' et ')}` : cp ? `Validée · confirmation : ${cp.done}/${cp.total} exercices sur deux jours` : meta.label}</Text>
+          <Text style={[styles.state, { color: meta.color }]}>{locked ? `Après : ${parents.map((x) => x.title).join(' et ')}` : meta.label}</Text>
         </View>
         <Text style={styles.chev}>›</Text>
       </Pressable>
@@ -70,32 +68,28 @@ export function TreeScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={[type.display, styles.title]}>Ton parcours</Text>
+      <Text style={[type.display, styles.title]}>Leçons</Text>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <Text style={styles.heroKicker}>{doneCount} leçon{doneCount > 1 ? 's' : ''} validée{doneCount > 1 ? 's' : ''} sur {LESSONS.length}</Text>
+          <Text style={styles.heroKicker}>{doneCount} leçon{doneCount > 1 ? 's' : ''} faite{doneCount > 1 ? 's' : ''} sur {LESSONS.length}</Text>
           <View style={styles.heroBar}><View style={[styles.heroFill, { width: `${(doneCount / LESSONS.length) * 100}%` }]} /></View>
           {toValidate || discover ? (
             <>
-              <Text style={styles.heroLabel}>{toValidate ? 'À valider' : 'Ta prochaine leçon'}</Text>
-              <Text style={styles.heroTitle}>Leçon {(toValidate ?? discover)!.number} · {(toValidate ?? discover)!.title}</Text>
-              <Text style={styles.heroText}>{toValidate ? 'Tu l\'as vue : finis sa pratique et sa validation pour ouvrir la suite.' : 'Écoute, comprends, pratique : ses notions et exercices entreront ensuite dans la révision de ta séance du jour.'}</Text>
+              <Text style={styles.heroLabel}>{toValidate ? 'À terminer' : 'Ta prochaine leçon'}</Text>
+              <Text style={styles.heroTitle}>{(toValidate ?? discover)!.title}</Text>
               <View style={styles.heroRow}>
                 <Pressable onPress={() => nav.navigate('DeepLesson', { id: (toValidate ?? discover)!.id })} style={styles.heroBtn} accessibilityRole="button">
-                  <Text style={styles.heroBtnText}>{toValidate ? 'Reprendre la leçon' : 'Commencer la leçon'}</Text>
-                </Pressable>
-                <Pressable onPress={() => (nav as unknown as { navigate: (r: string) => void }).navigate('Workout')} style={[styles.heroBtn, styles.heroBtnGhost]} accessibilityRole="button">
-                  <Text style={[styles.heroBtnText, { color: colors.onPrimary }]}>Séance du jour →</Text>
+                  <Text style={styles.heroBtnText}>{toValidate ? '▶  Reprendre' : '▶  Commencer'}</Text>
                 </Pressable>
               </View>
             </>
-          ) : <Text style={styles.heroTitle}>Tout le cursus est validé : place aux confirmations et aux révisions.</Text>}
+          ) : <Text style={styles.heroTitle}>Toutes les leçons sont faites : tes séances les consolident.</Text>}
         </View>
 
         <View style={styles.phase}>
           {doneCount ? (
             <Pressable onPress={() => setPast((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: past }} style={styles.allBtn}>
-              <Text style={styles.allText}>{past ? 'Afficher moins ▾' : `Afficher plus : ${doneCount} leçon${doneCount > 1 ? 's' : ''} validée${doneCount > 1 ? 's' : ''} ▴`}</Text>
+              <Text style={styles.allText}>{past ? 'Masquer les leçons faites ▾' : `${doneCount} leçon${doneCount > 1 ? 's' : ''} faite${doneCount > 1 ? 's' : ''} ▴`}</Text>
             </Pressable>
           ) : null}
           {past ? done.map((l) => card(l, true)) : null}
@@ -104,10 +98,9 @@ export function TreeScreen() {
           {future ? later.map((l) => card(l, true)) : null}
           {later.length ? (
             <Pressable onPress={() => setFuture((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: future }} style={styles.allBtn}>
-              <Text style={styles.allText}>{future ? 'Afficher moins ▴' : `Afficher plus : ${later.length} leçon${later.length > 1 ? 's' : ''} à venir ▾`}</Text>
+              <Text style={styles.allText}>{future ? 'Masquer la suite ▴' : `${later.length} leçon${later.length > 1 ? 's' : ''} à venir ▾`}</Text>
             </Pressable>
           ) : null}
-          {doneCount && toConfirm ? <Text style={styles.doneLine}>✓ Dont {toConfirm} à confirmer dans ta séance.</Text> : null}
         </View>
       </ScrollView>
     </SafeAreaView>

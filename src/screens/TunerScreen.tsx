@@ -12,9 +12,12 @@ import { centsOff, HOLD_MS, IN_TUNE_CENTS, median, nearest, nextString, presetBy
 import { freqToMidi, noteName } from '../engine/music';
 import { useToolsStore } from '../store/useToolsStore';
 import { useUserStore } from '../store/useUserStore';
+import { TUNINGS } from '../tuning';
 import { colors, type } from '../theme';
 
 const GATE = 0.012;
+/** accordages de guitare : une seule source, l'accordage de l'élève (réglages), que suivent aussi le manche et les exercices */
+const isGuitarPreset = (id: string) => id === 'guitare' || id in TUNINGS;
 
 function Gauge({ cents, active }: { cents: number | null; active: boolean }) {
   const W = 320; const H = 172; const cx = W / 2; const cy = 152; const r = 108;
@@ -37,9 +40,21 @@ function Gauge({ cents, active }: { cents: number | null; active: boolean }) {
 
 export function TunerScreen() {
   const focused = useIsFocused();
-  const tuningId = useToolsStore((s) => s.tuning);
+  const stored = useToolsStore((s) => s.tuning);
   const setTools = useToolsStore((s) => s.set);
   const instrument = useUserStore((s) => s.settings.instrument);
+  const fretTuning = useUserStore((s) => s.settings.tuning) ?? 'standard';
+  const setSettings = useUserStore((s) => s.setSettings);
+  const micGate = useUserStore((s) => s.settings.micGate);
+  const gateRef = useRef(GATE);
+  gateRef.current = micGate ? Math.min(micGate, 0.05) : GATE;
+  const tuningId = stored && !isGuitarPreset(stored) ? stored
+    : instrument === 'guitare' ? (fretTuning === 'standard' ? 'guitare' : fretTuning)
+    : stored || 'chromatique';
+  const choose = (id: string) => {
+    if (instrument === 'guitare' && isGuitarPreset(id)) { setSettings({ tuning: id === 'guitare' ? 'standard' : id }); setTools({ tuning: '' }); }
+    else setTools({ tuning: id });
+  };
   const preset = presetById(tuningId);
   const chromatic = preset.strings.length === 0;
   const [menu, setMenu] = useState(false);
@@ -61,7 +76,7 @@ export function TunerScreen() {
     setError(null);
     audio.startMic((f) => {
       if (!alive || audio.now() < muteUntil.current) return;
-      if (f.freq === null || f.rms < GATE) { inTuneSince.current = null; return; }
+      if (f.freq === null || f.rms < gateRef.current) { inTuneSince.current = null; return; }
       hist.current = [...hist.current, f.freq].slice(-5);
       const freq = median(hist.current);
       const { lock: l, done: d, preset: p } = state.current;
@@ -102,7 +117,7 @@ export function TunerScreen() {
   const big = chromatic ? (reading ? nearest(reading.freq).name.replace(/-?\d+$/, '') : '–') : stringLabel(preset.strings[lock]);
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={styles.pad}>
         <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel={`Accordage : ${preset.label}. Changer`} style={styles.select}>
           <View style={{ flex: 1 }}>
@@ -154,7 +169,7 @@ export function TunerScreen() {
               {TUNER_PRESETS.map((p, i) => (
                 <View key={p.id}>
                   {i === 0 || TUNER_PRESETS[i - 1].group !== p.group ? <Text style={[type.small, { marginTop: 10 }]}>{p.group}</Text> : null}
-                  <Pressable onPress={() => { setTools({ tuning: p.id }); setMenu(false); }} accessibilityRole="radio" accessibilityState={{ checked: p.id === tuningId }} style={styles.option}>
+                  <Pressable onPress={() => { choose(p.id); setMenu(false); }} accessibilityRole="radio" accessibilityState={{ checked: p.id === tuningId }} style={styles.option}>
                     <Text style={[type.body, p.id === tuningId && { fontWeight: '800', color: colors.accent }]}>{p.label}</Text>
                     <Text style={type.small}>{p.strings.map(stringLabel).join(' ')}</Text>
                   </Pressable>

@@ -47,6 +47,8 @@ export function MetronomeScreen() {
   const [pos, setPos] = useState({ bar: 0, beat: -1, tempo: st.tempo });
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
+  /** visage simple par défaut : tempo, départ, tap ; le reste (signature, swing, automate…) sur demande */
+  const [more, setMore] = useState(false);
   const sig = signatureById(st.signature);
 
   useEffect(() => { setTempoText(String(st.tempo)); }, [st.tempo]);
@@ -169,7 +171,7 @@ export function MetronomeScreen() {
   const shownTempo = running ? pos.tempo : config.tempo;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
         <View style={styles.top}>
           <View style={styles.tempoBox}>
@@ -202,6 +204,10 @@ export function MetronomeScreen() {
           {[-5, -1, 1, 5].map((d) => <Button key={d} small variant="contour" color={ACCENT} label={d > 0 ? `+${d}` : `${d}`} onPress={() => st.set({ tempo: clampTempo(st.tempo + d) })} style={{ flex: 1 }} />)}
         </View>
 
+        <Pressable onPress={() => setMore((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: more }} style={styles.disclosure}>
+          <Text style={styles.disclosureText}>{more ? 'Moins de réglages ▴' : `Plus de réglages · ${sig.label}${st.swing > 50 ? ` · swing ${st.swing} %` : ''}${st.silentBars ? ' · mesures muettes' : ''}${auto.on ? ' · automate' : ''} ▾`}</Text>
+        </Pressable>
+        {more ? (<>
         {/* signature */}
         <Text style={styles.section}>Signature</Text>
         {([2, 3, 4] as const).map((g) => (
@@ -247,9 +253,11 @@ export function MetronomeScreen() {
           ) : null}
         </View>
 
-        {/* presets */}
-        <Text style={styles.section}>Presets</Text>
-        <Button label="★  Save Preset" onPress={() => { setTitle(`${st.tempo} BPM · ${st.signature}`); setSaving(true); }} color={colors.gold} />
+        <Button label="★  Enregistrer en preset" onPress={() => { setTitle(`${st.tempo} BPM · ${st.signature}`); setSaving(true); }} color={colors.gold} />
+        </>) : null}
+
+        {/* presets : visibles dès qu'il y en a, c'est un raccourci */}
+        {st.presets.length ? <Text style={styles.section}>Presets</Text> : null}
         {st.presets.length ? st.presets.map((p) => (
           <Pressable key={p.id} onPress={() => { st.set({ tempo: p.tempo, signature: p.signature, swing: p.swing }); setAuto(p.automation ? { on: true, start: p.tempo, step: p.automation.step, everyBars: p.automation.everyBars, ceiling: p.automation.ceiling ? String(p.automation.ceiling) : '' } : (a) => ({ ...a, on: false })); }}
             accessibilityRole="button" accessibilityLabel={`Preset ${p.title}`} style={styles.preset}>
@@ -260,7 +268,7 @@ export function MetronomeScreen() {
             {p.automation ? <Text style={[styles.arrow, { color: p.automation.step >= 0 ? colors.success : colors.warn }]}>{p.automation.step >= 0 ? '↗' : '↘'}</Text> : null}
             <Pressable onPress={() => st.deletePreset(p.id)} accessibilityRole="button" accessibilityLabel={`Supprimer ${p.title}`} hitSlop={10}><Text style={styles.del}>✕</Text></Pressable>
           </Pressable>
-        )) : <Text style={type.small}>Aucun preset enregistré.</Text>}
+        )) : null}
       </ScrollView>
 
       <Modal visible={saving} transparent animationType="fade" onRequestClose={() => setSaving(false)}>
@@ -295,6 +303,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sigRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   section: { fontSize: 18, fontWeight: '900', color: colors.ink, marginTop: 10 },
+  disclosure: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },
+  disclosureText: { fontSize: 14, fontWeight: '800', color: colors.inkSoft, textAlign: 'center' },
   chip: { borderWidth: 2, borderColor: ACCENT, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
   chipTxt: { fontWeight: '800', fontSize: 13 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },

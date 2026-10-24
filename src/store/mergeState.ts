@@ -14,7 +14,7 @@ export function mergeStates(local: AnyState, remote: AnyState): AnyState {
   out.xpByDay = maxRec(local.xpByDay as Record<string, number>, remote.xpByDay as Record<string, number>);
   out.levels = maxRec(local.levels as Record<string, number>, remote.levels as Record<string, number>);
   for (const k of ['xpTotal', 'bestStreak', 'sessionsDone', 'perfectSessions']) out[k] = Math.max(Number(local[k] ?? 0), Number(remote[k] ?? 0));
-  for (const k of ['seenConcepts', 'seenPoints', 'validatedPoints', 'badges', 'deepLessonsDone', 'deepLessonsSeen', 'deepLessonsConfirmed']) out[k] = union(local[k] as unknown[], remote[k] as unknown[]);
+  for (const k of ['seenConcepts', 'seenPoints', 'seenTemplates', 'validatedPoints', 'badges', 'deepLessonsDone', 'deepLessonsSeen', 'deepLessonsConfirmed']) out[k] = union(local[k] as unknown[], remote[k] as unknown[]);
   // cursus : jours de réussite réunis, jour de validation le plus ancien, technique la plus avancée
   const lp = (local.practiceDays ?? {}) as Record<string, string[]>, rp = (remote.practiceDays ?? {}) as Record<string, string[]>;
   const pd: Record<string, string[]> = { ...rp };

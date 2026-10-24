@@ -13,6 +13,7 @@ import { AtelierScreen } from './src/screens/AtelierScreen';
 import { DeepLessonScreen } from './src/screens/DeepLessonScreen';
 import { MetronomeScreen } from './src/screens/MetronomeScreen';
 import { TunerScreen } from './src/screens/TunerScreen';
+import { FocusScreen } from './src/screens/FocusScreen';
 import { StatusBar } from 'expo-status-bar';
 import { isDark } from './src/theme';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -26,19 +27,19 @@ import { colors } from './src/theme';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+/** outils ouverts depuis « Jouer » : un en-tête simple avec retour */
+const toolHeader = { headerBackTitle: 'Jouer', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerShadowVisible: false } as const;
+
 const icon = (glyph: string) => ({ color }: { color: string }) => <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
 
 function Tabs() {
   return (
-    // la séance du jour est l'écran d'ouverture : c'est ce que l'élève vient faire chaque jour
-    <Tab.Navigator initialRouteName="Workout" screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.ink, tabBarInactiveTintColor: colors.tabInactive, tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line }, tabBarLabelStyle: { fontSize: 10 } }}>
-      {/* l'ordre du plan : 1 Workout, 2 Leçons, 3 Pratique, 4 Métronome, 5 Accordeur, 6 Profil */}
-      <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarIcon: icon('▶') }} />
+    // quatre destinations, un verbe chacune (et, plus tard, un objet de la maison) ; la séance du jour ouvre l'appli
+    <Tab.Navigator initialRouteName="Workout" screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.ink, tabBarInactiveTintColor: colors.tabInactive, tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line }, tabBarLabelStyle: { fontSize: 11 } }}>
+      <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarIcon: icon('▶'), tabBarLabel: 'Séance', title: 'Séance' }} />
       <Tab.Screen name="Arbre" component={TreeScreen} options={{ tabBarIcon: icon('♪'), tabBarLabel: 'Leçons', title: 'Leçons' }} />
-      <Tab.Screen name="Pratique" component={AtelierScreen} options={{ tabBarIcon: icon('◎') }} />
-      <Tab.Screen name="Metronome" component={MetronomeScreen} options={{ tabBarIcon: icon('♩'), tabBarLabel: 'Métronome', title: 'Métronome' }} />
-      <Tab.Screen name="Accordeur" component={TunerScreen} options={{ tabBarIcon: icon('⋔') }} />
-      <Tab.Screen name="Profil" component={ProfileScreen} options={{ tabBarIcon: icon('●') }} />
+      <Tab.Screen name="Pratique" component={AtelierScreen} options={{ tabBarIcon: icon('◎'), tabBarLabel: 'Jouer', title: 'Jouer' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ tabBarIcon: icon('●'), tabBarLabel: 'Moi', title: 'Moi' }} />
     </Tab.Navigator>
   );
 }
@@ -67,6 +68,9 @@ export default function App() {
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
           <Stack.Screen name="Practice" component={PracticeScreen} options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="DeepLesson" component={DeepLessonScreen} options={{ presentation: 'modal', headerShown: false }} />
+          <Stack.Screen name="Focus" component={FocusScreen} options={{ presentation: 'modal', headerShown: false }} />
+          <Stack.Screen name="Metronome" component={MetronomeScreen} options={{ ...toolHeader, title: 'Métronome' }} />
+          <Stack.Screen name="Accordeur" component={TunerScreen} options={{ ...toolHeader, title: 'Accordeur' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

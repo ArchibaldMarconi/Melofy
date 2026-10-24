@@ -19,9 +19,8 @@ import { DEFAULT_GATE, useMic } from '../audio/useMic';
 import { centsToTarget } from '../components/PitchMeter';
 import { generate, mergeParams } from '../engine/generators';
 import { beatsToMs, degreeItemsFromNotes, degreeLabel, degreeToMidi, midiDegreeLabel, noteName, pcName, referenceEvents, REFERENCE_TEMPO } from '../engine/music';
-import { maxLevel } from '../engine/generators';
 import { RhythmTimeline } from '../components/RhythmTimeline';
-import { Celebration, usePop, useShake } from '../components/Celebration';
+import { usePop, useShake } from '../components/Celebration';
 import { Animated } from 'react-native';
 import { scoreAnswer, scoreTranscription } from '../engine/scoring';
 import { HELPS, XP } from '../engine/xp';
@@ -98,6 +97,10 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
   const errorPoint = unseen[1] ?? null;
   const [openPoint, setOpenPoint] = useState<LessonPoint | null>(null);
   const markPointSeen = useUserStore((s) => s.markPointSeen);
+  const markTemplateSeen = useUserStore((s) => s.markTemplateSeen);
+  // la consigne complète à la 1re rencontre seulement ; ensuite, la question et un bouton (le détail reste à un toucher)
+  const [firstTime] = useState(() => placement || !(useUserStore.getState().seenTemplates ?? []).includes(t.id));
+  const [showConsigne, setShowConsigne] = useState(false);
   const [phase, setPhase] = useState<Phase>(lesson ? 'LECON' : 'CONSIGNE');
   const [step, setStep] = useState<0 | 1>(0); // repiquage : 0 rejouer, 1 transcrire
   const [attempt, setAttempt] = useState(1);
@@ -251,6 +254,7 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
   const listen = useCallback(async () => {
     await audio.init();
     if (introPoint) markPointSeen(introPoint.id);
+    if (!placement) markTemplateSeen(t.id);
     resetAnswers();
     if (v.drone) audio.startDrone(v.drone);
     if (v.answerUI === 'quiz') { setPhase('SAISIE'); return; }
@@ -303,6 +307,8 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
 
   // les minuteries appellent toujours la version à jour (évite les états périmés)
   const submitRef = useRef<(o?: Answer) => void>(() => undefined);
+  const onNextRef = useRef(onNext);
+  onNextRef.current = onNext;
   submitRef.current = (o?: Answer) => submit(o);
 
   function submit(override?: Answer) {
@@ -389,7 +395,8 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
     setResult(info);
     onFinished(info, outcome);
     setPhase(success ? 'SUCCES' : 'RESULTAT');
-    if (success) timers.current.push(setTimeout(() => setPhase('RESULTAT'), 900));
+    // réussi : on enchaîne tout seul (la vraie tonique de « trouve la maison » a le temps de sonner)
+    if (success) timers.current.push(setTimeout(() => onNextRef.current(), v.revealTonic ? 3000 : 1100));
   }
 
   function playDemo() {
@@ -549,7 +556,7 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
       <View style={styles.header}>
         <Text style={[styles.tag, { color }]}>{domainLabel[t.domain]} · {MECHANIC_LABEL[t.mechanic]}{transcribing ? ' · transcription' : ''}</Text>
         <View style={styles.headRight}>
-          <Text style={styles.attempt}>{placement ? 'Une seule tentative' : `Essai ${attempt}/${XP.maxAttempts}${rate < 1 ? ' · 70 %' : ''}`}</Text>
+          {placement ? <Text style={styles.attempt}>Une seule tentative</Text> : attempt > 1 || rate < 1 ? <Text style={styles.attempt}>{`Essai ${attempt}/${XP.maxAttempts}${rate < 1 ? ' · 70 %' : ''}`}</Text> : null}
           {onSkip && phase !== 'RESULTAT' && phase !== 'SUCCES' ? (
             <Pressable onPress={skip} accessibilityRole="button" accessibilityLabel="Passer cet exercice" hitSlop={10}>
               <Text style={[styles.skip, { color }]}>{placement ? 'Je ne sais pas' : 'Passer'}</Text>
@@ -578,7 +585,7 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
       {showHint && phase !== 'RESULTAT' && phase !== 'SUCCES' ? <View style={styles.hint}><Text style={type.body}>💡 {v.hint}</Text></View> : null}
       {showCorrection && capturing && expectedLabels ? <Text style={[styles.correction, { borderColor: color }]}>Attendu : {expectedLabels}</Text> : null}
 
-      {inputOptions.length > 1 && (phase === 'CONSIGNE' || phase === 'FEEDBACK') && !transcribing ? (
+      {inputOptions.length > 1 && ((phase === 'CONSIGNE' && (firstTime || showConsigne)) || phase === 'FEEDBACK') && !transcribing ? (
         <View style={styles.inputs}>
           {inputOptions.map((m) => (
             <Button key={m} small variant={m === input ? 'plein' : 'contour'} color={color} label={INPUT_LABEL[m]} onPress={() => setInput(m)} />
@@ -586,7 +593,14 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
         </View>
       ) : null}
 
-      {phase === 'CONSIGNE' ? (
+      {phase === 'CONSIGNE' && !firstTime && !showConsigne ? (
+        <View style={styles.block}>
+          {introPoint ? <PointTip point={introPoint} color={color} instrument={instrument} label="Nouveau" onMore={() => setOpenPoint(introPoint)} /> : null}
+          <Button color={color} label={v.stimulusKind !== 'none' || v.simultaneous ? '▶  Écouter' : '▶  Commencer'} onPress={listen} />
+          <Button small variant="texte" color={colors.inkSoft} label="Comment répondre ?" onPress={() => setShowConsigne(true)} />
+        </View>
+      ) : null}
+      {phase === 'CONSIGNE' && (firstTime || showConsigne) ? (
         <ConsigneCard
           color={color} instrument={instrument} faire={consigne?.faire ?? t.description} how={how} success={successText(t, v)} placement={!!placement}
           introPoint={introPoint} otherPoints={points.filter((pt) => pt !== introPoint && seenAtStart.includes(pt.id))}
@@ -597,7 +611,7 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
       {v.guide?.text && (capturing || phase === 'CONSIGNE') ? <Text style={[styles.howLine, { fontWeight: '800' }]}>{v.guide.text}</Text> : null}
       {v.drone && (phase === 'ECOUTE' || (capturing && !(input === 'micro' || (v.answerUI === 'sing' && !fallback)))) ? (
         <View style={styles.droneTag} accessibilityRole="text">
-          <Text style={styles.droneText}>🔊 Le son tenu en fond est la tonique (1), la « maison » : compare chaque note à lui.</Text>
+          <Text style={styles.droneText}>🔊 En fond : la tonique (1), la « maison ».</Text>
         </View>
       ) : null}
       {v.drone && capturing && (input === 'micro' || (v.answerUI === 'sing' && !fallback)) ? (
@@ -723,15 +737,16 @@ export function ExercisePlayer({ template: t, params, seed, lessonConceptId, inS
         </View>
       ) : null}
 
-      {phase === 'SUCCES' ? <Animated.Text style={[styles.success, pop]}>Bravo !</Animated.Text> : null}
+      {phase === 'SUCCES' ? (
+        <Pressable onPress={() => { clearTimers(); onNext(); }} accessibilityRole="button" accessibilityLabel="Réussi. Suivant">
+          <Animated.Text style={[styles.success, pop]}>✓ Bravo !</Animated.Text>
+        </Pressable>
+      ) : null}
 
       {phase === 'RESULTAT' && result ? (
         <View style={styles.block}>
-          <Celebration xp={result.xp} rating={result.rating} precision={last?.precision ?? 0} color={color} />
+          <Text style={type.body}>Pas grave : il reviendra bientôt, un peu plus facile.</Text>
           {revealed ? <Button small variant="contour" color={color} label="▶ Réécouter la vraie tonique" onPress={() => audio.play([{ midi: v.tonic, start: 0, dur: 2.5 }], { tempo: 60, instrument })} /> : null}
-          {result.levelChange === 1 ? <Text style={[type.body, { color: colors.success }]}>Niveau {result.level + 1}/{maxLevel(t) + 1} sur cet exercice : la prochaine fois sera un peu plus difficile.</Text> : null}
-          {result.levelChange === -1 ? <Text style={type.body}>On revient au niveau {result.level + 1} la prochaine fois, pour consolider.</Text> : null}
-          {result.newBadges.length ? <Text style={type.body}>Nouveau badge débloqué !</Text> : null}
           <Button color={color} label="Suivant" onPress={onNext} />
         </View>
       ) : null}

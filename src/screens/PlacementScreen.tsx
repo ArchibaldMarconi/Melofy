@@ -22,8 +22,10 @@ const emptyResults = (): Results => ({ rythme: {}, oreille: {}, theorie: {}, tec
 export function PlacementScreen() {
   const placeOut = useUserStore((s) => s.placeOut);
   const cancel = useUserStore((s) => s.setPlacementPending);
+  // niveau déjà déclaré à l'accueil : on ne le redemande pas
+  const preset = useUserStore((s) => s.placementProfile);
   const [phase, setPhase] = useState<Phase>('intro');
-  const [profile, setProfile] = useState<PlacementProfile | null>(null);
+  const [profile, setProfile] = useState<PlacementProfile | null>(preset);
   const [d, setD] = useState(0); // indice du domaine en cours
   const [current, setCurrent] = useState<number | null>(null);
   const [count, setCount] = useState(0);
@@ -57,9 +59,9 @@ export function PlacementScreen() {
       <SafeAreaView style={styles.screen}>
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={type.display}>Test de placement</Text>
-          <Text style={type.body}>Quatre domaines, évalués chacun séparément : rythme, oreille, théorie et lecture, technique. On peut être très bon dans l'un et débuter dans l'autre : Melofy te donnera les bases là où il faut, et des défis là où tu es à l'aise.</Text>
-          <Text style={type.title}>Où en es-tu, globalement ?</Text>
-          <View style={styles.choices}>
+          <Text style={type.body}>Quatre domaines, chacun à part : rythme, oreille, théorie et lecture, technique. Tu sautes ce que tu sais déjà, et tu gardes des défis là où tu es à l'aise.</Text>
+          {preset ? null : <Text style={type.title}>Où en es-tu, globalement ?</Text>}
+          {preset ? null : <View style={styles.choices}>
             {(Object.keys(PROFILES) as PlacementProfile[]).map((id) => {
               const on = profile === id;
               return (
@@ -69,7 +71,7 @@ export function PlacementScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </View>}
           <Text style={type.small}>C'est seulement le point de départ : dans chaque domaine, le test monte ou descend selon tes réponses. Une seule tentative par question, pas d'aide ; « Je ne sais pas » est toujours possible.</Text>
           <Button label="Commencer le test" disabled={!profile} onPress={start} />
           <Button variant="texte" color={colors.inkSoft} label="Finalement, je commence au début" onPress={() => cancel(false)} />

@@ -38,6 +38,7 @@ export const DOMAIN_PROBES: Record<PlacementDomain, Probe[]> = {
     { conceptId: 'cadences', templateId: 'OR-4-02', params: { questions: 3, cadences: ['parfaite', 'plagale', 'demi'] } },
     { conceptId: 'modes', templateId: 'OR-5-01', params: { questions: 3, modes: ['ionien', 'dorien', 'mixolydien', 'eolien'] } },
     { conceptId: 'emprunts', templateId: 'OR-5-03', params: { questions: 3, accords: ['IV', 'iv', 'bVII'] } },
+    { conceptId: 'modulation', templateId: 'OR-5-05', params: { questions: 3, modulations: ['reste', 'V', 'vi'] } },
   ],
   theorie: [
     { conceptId: 'notes_instrument', templateId: 'TH-1-02', params: { questions: 3, etendue: 1 } },

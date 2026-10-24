@@ -84,15 +84,29 @@ export function confirmProgress(l: Lesson, p: LessonProgress, instrument: Instru
  */
 export function lessonsFromCompetences(comps: Record<string, CompetenceState>): { seen: string[]; acquired: string[] } {
   const cs = Object.values(comps);
+  const acquired = new Set(cs.filter((c) => isAcquired(c)).map((c) => c.conceptId));
+  const practiced = new Set(cs.filter((c) => c.reps > 0).map((c) => c.conceptId));
+  return lessonsFromConcepts(acquired, practiced);
+}
+
+/**
+ * Leçons acquises d'après des notions acquises (placement, anciens profils), dans l'ordre du cursus :
+ *  - une leçon n'est acquise que si ses leçons parentes le sont (jamais une confirmation au-dessus d'un trou) ;
+ *  - une leçon sans notion propre (les modes un par un) l'est quand les notions de sa validation le sont ;
+ *  - une leçon dont toutes les notions sont au moins pratiquées, et dont les parents sont acquis, est vue.
+ */
+export function lessonsFromConcepts(acquired: Set<string>, practiced: Set<string> = acquired): { seen: string[]; acquired: string[] } {
   const seen: string[] = [];
-  const acquired: string[] = [];
+  const got = new Set<string>();
   for (const l of DEEP_LESSONS) {
-    const withTpl = l.concepts.filter((cid) => TEMPLATES.some((t) => t.concepts.includes(cid)));
-    if (!withTpl.length) continue;
-    if (withTpl.every((cid) => cs.some((c) => c.conceptId === cid && isAcquired(c)))) { acquired.push(l.id); seen.push(l.id); }
-    else if (withTpl.every((cid) => cs.some((c) => c.conceptId === cid && c.reps > 0))) seen.push(l.id);
+    if (!l.parents.every((p) => got.has(p))) continue;
+    let own = l.concepts.filter((cid) => TEMPLATES.some((t) => t.concepts.includes(cid)));
+    if (!own.length) own = TEMPLATES.find((t) => t.id === l.validation.templateId)?.concepts ?? [];
+    if (!own.length) continue;
+    if (own.every((cid) => acquired.has(cid))) { got.add(l.id); seen.push(l.id); }
+    else if (own.every((cid) => practiced.has(cid) || acquired.has(cid))) seen.push(l.id);
   }
-  return { seen, acquired };
+  return { seen, acquired: [...got] };
 }
 
 /** la plus avancée des leçons vues (ordre du cursus), pour régler le niveau des parties du workout */

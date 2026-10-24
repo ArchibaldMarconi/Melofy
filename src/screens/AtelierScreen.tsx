@@ -1,10 +1,6 @@
-// Onglet « Pratique » (0.24.0) : le catalogue des exercices standards, en accès libre et réglables. Rien ne vient des
-// leçons ici : les notions et exercices d'une leçon nourrissent la partie « Révision et validation » du workout.
-// 1. Ear training : intervalles, triades, tétrades, gammes et modes, degrés — avec les éléments choisis.
-// 2. Rythme : lecture ou perroquet, mesure, tempo et figures choisis.
-// 3. Mapping (façon « Solo » de Tom Quayle) : notes (3 niveaux), intervalles, accords, gammes.
-// 4. Technique : gamme, position (ou une seule corde), sens, tempo de départ et pas d'accélération.
-// 5. Improvisation : le perroquet, sur la gamme choisie.
+// Onglet « Jouer » : les outils (métronome, accordeur), l'entraînement ciblé en un toucher (l'appli choisit les
+// exercices et le niveau), et, replié sous « Personnaliser », le catalogue réglable pour qui veut tout choisir :
+// ear training, rythme, mapping (façon « Solo » de Tom Quayle), technique au métronome, perroquet.
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +16,10 @@ import { colors, domainColor, type } from '../theme';
 import { CHORD_TYPES, DEFAULT_DRILL, SCALES, INTERVAL_SHORT, type DrillConfig, type DrillKind, type Order } from '../drills/engine';
 import { DrillRunner } from '../drills/DrillRunner';
 import { LessonExercises } from '../components/LessonExercises';
+import { AREAS, AREA_LABEL, AREA_LINE } from '../content/skills';
+import { TEMPLATES } from '../content/templates';
+import { focusPool } from '../engine/focus';
+import { lessonProgressOf } from '../store/useUserStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -64,9 +64,68 @@ const MINUTES: [number, string][] = [[1, '1 min'], [2, '2 min'], [5, '5 min'], [
 export function AtelierScreen() {
   const nav = useNavigation<Nav>();
   const st = useUserStore();
+  const [drill, setDrill] = useState<DrillConfig | null>(null);
+  const [custom, setCustom] = useState(false);
+  if (drill) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <DrillRunner config={drill} onExit={() => setDrill(null)} />
+      </SafeAreaView>
+    );
+  }
+  const progress = lessonProgressOf(st);
+  const canSing = st.settings.canSing ?? true;
+  return (
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.pad}>
+        <Text style={type.display}>Jouer</Text>
+        <View style={styles.tools}>
+          <Tool glyph="♩" title="Métronome" onPress={() => nav.navigate('Metronome')} />
+          <Tool glyph="⋔" title="Accordeur" onPress={() => nav.navigate('Accordeur')} />
+        </View>
+
+        <Text style={styles.section}>Entraînement ciblé</Text>
+        <Text style={type.small}>5 minutes sur un domaine : l'appli choisit les exercices et le niveau.</Text>
+        {AREAS.map((a) => {
+          const open = focusPool({ area: a, templates: TEMPLATES, progress, canSing }).length > 0;
+          return (
+            <Pressable key={a} disabled={!open} onPress={() => nav.navigate('Focus', { area: a })} accessibilityRole="button" accessibilityLabel={`Entraînement ciblé : ${AREA_LABEL[a]}`}
+              style={({ pressed }) => [styles.focus, { borderLeftColor: AREA_COLOR[a] }, !open && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={type.title}>{AREA_LABEL[a]}</Text>
+                <Text style={type.small}>{open ? AREA_LINE[a] : 'S\'ouvre avec tes premières leçons'}</Text>
+              </View>
+              <Text style={[styles.play, { color: AREA_COLOR[a] }]}>▶</Text>
+            </Pressable>
+          );
+        })}
+
+        <Pressable onPress={() => setCustom((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: custom }} style={styles.disclosure}>
+          <Text style={styles.disclosureText}>{custom ? 'Masquer les réglages ▴' : 'Personnaliser un exercice ▾'}</Text>
+        </Pressable>
+        {custom ? <Catalogue onDrill={setDrill} /> : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const AREA_COLOR = { oreille: domainColor.oreille, mains: domainColor.technique, lecture: domainColor.theorie, rythme: domainColor.rythme } as const;
+
+function Tool({ glyph, title, onPress }: { glyph: string; title: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.tool, pressed && { opacity: 0.85 }]}>
+      <Text style={styles.toolGlyph}>{glyph}</Text>
+      <Text style={styles.toolTitle}>{title}</Text>
+    </Pressable>
+  );
+}
+
+/** le catalogue réglable : tout choisir soi-même (élément, durée, tempo…) */
+function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
+  const nav = useNavigation<Nav>();
+  const st = useUserStore();
   const instrument = st.settings.instrument;
   const [open, setOpen] = useState<string | null>(null);
-  const [drill, setDrill] = useState<DrillConfig | null>(null);
   // réglages de l'oreille
   const [ivSens, setIvSens] = useState<string[]>(['montant']);
   const [ivSet, setIvSet] = useState<number[]>([3, 4, 5, 7, 12]);
@@ -92,14 +151,6 @@ export function AtelierScreen() {
   const [d, setD] = useState<Omit<DrillConfig, 'kind'>>({ ...DEFAULT_DRILL, notation: st.settings.chordNotation ?? 'maj7' });
   const set = (patch: Partial<Omit<DrillConfig, 'kind'>>) => setD((x) => ({ ...x, ...patch }));
 
-  if (drill) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <DrillRunner config={drill} onExit={() => setDrill(null)} />
-      </SafeAreaView>
-    );
-  }
-
   // séries chronométrées : la durée choisie s'applique aux exercices d'oreille et au perroquet
   const ear = (templateId: string, params: Params) => nav.navigate('Practice', { templateId, params, seed: newSeed(), minutes: earMinutes[0] });
   const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
@@ -109,8 +160,6 @@ export function AtelierScreen() {
   const rc = domainColor.rythme;
   const common = (
     <>
-      <Text style={type.small}>Durée</Text>
-      <Chips options={MINUTES} value={[d.minutes]} onChange={([m]) => set({ minutes: m })} multi={false} color={tc} />
       <Text style={type.small}>Après avoir trouvé</Text>
       <Chips options={[['trouve', 'Suivant tout de suite'], ['2s', 'Pause 2 s'], ['5s', 'Pause 5 s']]} value={[d.advance]} onChange={([a]) => set({ advance: a as DrillConfig['advance'] })} multi={false} color={tc} />
       <Text style={type.small}>Je joue</Text>
@@ -118,13 +167,10 @@ export function AtelierScreen() {
       <Chips options={[['oui', 'Afficher les doigtés']]} value={d.showFingerings ? ['oui'] : []} onChange={() => set({ showFingerings: !d.showFingerings })} color={tc} />
     </>
   );
-  const go = (kind: DrillKind) => setDrill({ kind, ...d });
+  const go = (kind: DrillKind) => onDrill({ kind, ...d, minutes: earMinutes[0] });
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.pad}>
-        <Text style={type.display}>Pratique</Text>
-        <Text style={type.body}>Les exercices standards, à régler comme tu veux. Les nouveautés de tes leçons, elles, arrivent dans la révision de ton workout.</Text>
+    <View style={{ gap: 12 }}>
         {st.settings.catalogueTest ? <LessonExercises /> : null}
 
         <Text style={type.small}>Durée d'une série</Text>
@@ -226,15 +272,22 @@ export function AtelierScreen() {
           <Chips options={Object.entries(SCALES).map(([k, v]) => [k, v.label] as [string, string])} value={parrotScale} onChange={setParrotScale} multi={false} color={ic} />
           <Button color={ic} label="Lancer" onPress={() => ear('IM-3-01', { nb_notes: parrotNotes[0], degres: SCALES[parrotScale[0]].tokens })} />
         </Card>
-      </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  tools: { flexDirection: 'row', gap: 10 },
+  tool: { flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 18, alignItems: 'center', gap: 4 },
+  toolGlyph: { fontSize: 30, color: colors.ink },
+  toolTitle: { fontWeight: '900', color: colors.ink },
+  focus: { backgroundColor: colors.card, borderRadius: 18, padding: 14, borderLeftWidth: 5, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64 },
+  play: { fontSize: 24, fontWeight: '900' },
+  disclosure: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', marginTop: 8 },
+  disclosureText: { fontSize: 14, fontWeight: '800', color: colors.inkSoft },
   screen: { flex: 1, backgroundColor: colors.paper },
   pad: { padding: 20, gap: 12, paddingBottom: 40 },
-  section: { fontSize: 20, fontWeight: '900', marginTop: 8 },
+  section: { fontSize: 20, fontWeight: '900', marginTop: 8, color: colors.ink },
   card: { backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 10, borderLeftWidth: 5 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   chev: { fontSize: 28, fontWeight: '900', width: 30, textAlign: 'center' },

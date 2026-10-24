@@ -14,6 +14,7 @@ import { validatePoints } from '../engine/points';
 import { recordIntervalAnswers, type IntervalStats } from '../engine/intervals';
 import { APP_VERSION } from '../version';
 import { lessonsFromCompetences, type LessonProgress } from '../engine/cursus';
+import type { PlacementProfile } from '../content/placement';
 
 // clé identique à la version web (« melofy-user:<nom> ») : même format de sauvegarde
 const mmkvStorage: StateStorage = {
@@ -82,6 +83,9 @@ interface UserState {
   techProgress: Record<string, { step: number; tempo: number; ok: number; ko: number }>;
   recordTechnique: (scale: string, kind: 'step' | 'tempo', success: boolean, maxStep: number) => void;
   markPointSeen: (id: string) => void;
+  /** exercices dont la consigne complète a déjà été montrée : ensuite, une ligne suffit */
+  seenTemplates: string[];
+  markTemplateSeen: (id: string) => void;
   badges: string[];
   bossDone: string[];
   mechanicsDone: string[];
@@ -93,8 +97,11 @@ interface UserState {
   /** dernière version dont l'utilisateur a vu les nouveautés */
   seenRelease: string;
   markReleaseSeen: () => void;
-  finishOnboarding: (instrument: Instrument, placement?: boolean) => void;
+  /** fin de l'accueil ; un niveau déclaré (bases, confirmé, avancé) lance le test de placement à ce point de départ */
+  finishOnboarding: (instrument: Instrument, profile?: PlacementProfile) => void;
   placementPending: boolean;
+  /** niveau déclaré à l'accueil : le test de placement ne le redemande pas */
+  placementProfile: PlacementProfile | null;
   setPlacementPending: (v: boolean) => void;
   /** valide les notions réussies au test de placement (note 2 : le SRS les revérifie vite) */
   /** placement par domaine : compétences (notion × domaine) validées ; les exercices concernés passent au niveau le plus difficile */
@@ -113,11 +120,12 @@ interface UserState {
 
 const initial = {
   xpTotal: 0, xpByDay: {}, streak: 0, bestStreak: 0, freezes: 0, lastSessionDay: null, sessionsDone: 0, perfectSessions: 0,
-  premium: false, competences: {}, levels: {}, avgTimeS: {}, intervalStats: {}, seenConcepts: [], seenPoints: [], validatedPoints: [], deepLessonsDone: [], deepLessonsSeen: [], deepLessonsDoneDay: {}, deepLessonsConfirmed: [], practiceDays: {}, techProgress: {}, badges: [], bossDone: [], mechanicsDone: [], carnet: [], confusions: [],
+  premium: false, competences: {}, levels: {}, avgTimeS: {}, intervalStats: {}, seenConcepts: [], seenPoints: [], validatedPoints: [], deepLessonsDone: [], deepLessonsSeen: [], deepLessonsDoneDay: {}, deepLessonsConfirmed: [], practiceDays: {}, techProgress: {}, seenTemplates: [], badges: [], bossDone: [], mechanicsDone: [], carnet: [], confusions: [],
   settings: { instrument: 'piano' as Instrument, inputPref: 'clavier' as InputMode, sessionMinutes: 10, latencyMs: 0, showNoteNames: false, unlockAll: false },
   inSessionStreak: 0,
   onboarded: false,
   placementPending: false,
+  placementProfile: null as PlacementProfile | null,
   seenRelease: APP_VERSION,
 };
 
@@ -224,6 +232,7 @@ export const useUserStore = create<UserState>()(
         return newBadges;
       },
 
+      markTemplateSeen: (id) => { const s = get().seenTemplates ?? []; if (!s.includes(id)) set({ seenTemplates: [...s, id] }); },
       markPointSeen: (id) => { const s = get().seenPoints ?? []; if (!s.includes(id)) set({ seenPoints: [...s, id] }); },
       markConceptSeen: (id) => { if (!get().seenConcepts.includes(id)) set({ seenConcepts: [...get().seenConcepts, id] }); },
       setSettings: (p) => set({ settings: { ...get().settings, ...p } }),
@@ -271,8 +280,8 @@ export const useUserStore = create<UserState>()(
       addPracticeXp: (xp) => { if (xp <= 0) return; const s = get(); const today = dayKey(); set({ xpTotal: s.xpTotal + xp, xpByDay: { ...s.xpByDay, [today]: (s.xpByDay[today] ?? 0) + xp } }); },
       recordIntervals: (entries) => set({ intervalStats: recordIntervalAnswers(get().intervalStats ?? {}, entries) }),
       // un nouvel utilisateur n'a pas de « nouveautés » : tout est nouveau pour lui
-      finishOnboarding: (instrument, placement = false) => set({ onboarded: true, placementPending: placement, seenRelease: APP_VERSION, settings: { ...get().settings, instrument, inputPref: instrument === 'guitare' ? 'manche' : 'clavier' } }),
-      setPlacementPending: (v) => set({ placementPending: v }),
+      finishOnboarding: (instrument, profile) => set({ onboarded: true, placementPending: !!profile, placementProfile: profile ?? null, seenRelease: APP_VERSION, settings: { ...get().settings, instrument, inputPref: instrument === 'guitare' ? 'manche' : 'clavier' } }),
+      setPlacementPending: (v) => set({ placementPending: v, ...(v ? {} : { placementProfile: null }) }),
       placeOut: (pairs) => {
         const s = get();
         const now = Date.now();
@@ -293,7 +302,7 @@ export const useUserStore = create<UserState>()(
         // le placement valide aussi les leçons dont toutes les notions sont réussies : un musicien confirmé ne refait pas tout
         const fromComps = lessonsFromCompetences(comps);
         set({
-          competences: comps, levels, seenConcepts: [...new Set([...s.seenConcepts, ...conceptIds])], placementPending: false,
+          competences: comps, levels, seenConcepts: [...new Set([...s.seenConcepts, ...conceptIds])], placementPending: false, placementProfile: null,
           deepLessonsSeen: [...new Set([...(s.deepLessonsSeen ?? []), ...fromComps.seen])],
           deepLessonsDone: [...new Set([...(s.deepLessonsDone ?? []), ...fromComps.acquired])],
           deepLessonsConfirmed: [...new Set([...(s.deepLessonsConfirmed ?? []), ...fromComps.acquired])],

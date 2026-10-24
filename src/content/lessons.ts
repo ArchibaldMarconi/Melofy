@@ -158,7 +158,7 @@ const P: LessonPoint[] = [
     { text: 'Reconnaître une note ne suffit pas : il faut aussi garder la mélodie en mémoire le temps de la nommer.' },
     { text: 'Méthode : retiens la 1re note, écoute le reste, chante tout de suite ce que tu as entendu, puis nomme les degrés en chantant. Si c\'est trop long, garde d\'abord les 3 premières notes.' },
   ] },
-  { id: 'fonctions', title: 'Penser en fonctions sur l\'instrument', astuce: 'Apprends chaque fonction comme une petite forme autour du 1, sur une seule octave, en montant et en descendant : elle se déplace telle quelle avec la fondamentale.', steps: [
+  { id: 'fonctions_instrument', title: 'Penser en fonctions sur l\'instrument', astuce: 'Apprends chaque fonction comme une petite forme autour du 1, sur une seule octave, en montant et en descendant : elle se déplace telle quelle avec la fondamentale.', steps: [
     { text: 'Les noms de notes servent à lire et à parler entre musiciens ; les fonctions (1, 2, 3…) servent à jouer et improviser. Avec la fondamentale sous les doigts, tu sais où est son 3, son 5, sans réciter de noms.' },
     { text: 'Piano : le 3 est 4 demi-tons au-dessus du 1 (en comptant chaque touche, noires comprises), le 5 est 7 demi-tons au-dessus. Guitare : la même forme marche depuis n\'importe quelle case. Par exemple, le 5 est deux cases plus loin sur la corde suivante, plus aiguë (trois cases quand on passe de la corde de sol à celle de si).' },
     { text: 'On travaille par petits blocs, une octave autour du 1, plutôt que de grandes « boîtes » à mémoriser.' },

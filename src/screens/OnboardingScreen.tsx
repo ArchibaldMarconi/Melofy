@@ -1,4 +1,5 @@
-// Premier lancement : choix de l'instrument et test du son (déverrouille l'audio sur iOS).
+// Premier lancement : l'instrument, le niveau (une seule fois : il sert de point de départ au test de placement),
+// et un test du son facultatif (il déverrouille aussi l'audio sur iOS).
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +8,14 @@ import { audio } from '../audio/RNAudioEngine';
 import { useUserStore } from '../store/useUserStore';
 import { Button } from '../components/Button';
 import { colors, type } from '../theme';
+import type { PlacementProfile } from '../content/placement';
+
+const LEVELS: [PlacementProfile | 'debut', string, string][] = [
+  ['debut', 'Je débute', 'On part de zéro'],
+  ['bases', 'Quelques bases', 'Test de 3 à 5 min'],
+  ['confirme', 'Confirmé', 'Je joue depuis un moment'],
+  ['avance', 'Avancé', 'Je lis, je repique, j\'improvise'],
+];
 
 const CHOICES: { id: Instrument; title: string; line: string; glyph: string }[] = [
   { id: 'piano', title: 'Piano', line: 'Clavier, tonique sur do', glyph: '🎹' },
@@ -17,7 +26,7 @@ export function OnboardingScreen() {
   const finish = useUserStore((s) => s.finishOnboarding);
   const [instrument, setInstrument] = useState<Instrument | null>(null);
   const [heard, setHeard] = useState(false);
-  const [level, setLevel] = useState<'debut' | 'bases' | null>(null);
+  const [level, setLevel] = useState<PlacementProfile | 'debut' | null>(null);
 
   const testSound = async () => {
     await audio.init();
@@ -45,18 +54,18 @@ export function OnboardingScreen() {
         </View>
         {instrument ? (
           <View style={styles.sound}>
-            <Button variant="contour" label={heard ? 'Rejouer le son' : 'Tester le son'} onPress={testSound} />
+            <Button small variant="texte" label={heard ? '🔊 Rejouer le son' : '🔊 Tester le son'} onPress={testSound} />
             <Text style={type.small}>Pas de son ? Désactive le mode silencieux de ton téléphone et monte le volume.</Text>
           </View>
         ) : null}
-        {heard ? (
+        {instrument ? (
           <View style={styles.sound}>
             <Text style={type.title}>Où en es-tu ?</Text>
-            <View style={styles.choices}>
-              {([['debut', 'Je débute', 'On part de zéro'], ['bases', 'J\'ai des bases', 'Test de 3 à 5 min']] as const).map(([id, title, line]) => {
+            <View style={styles.grid}>
+              {LEVELS.map(([id, title, line]) => {
                 const on = level === id;
                 return (
-                  <Pressable key={id} onPress={() => setLevel(id)} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} style={[styles.choice, on && styles.choiceOn]}>
+                  <Pressable key={id} onPress={() => setLevel(id)} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} style={[styles.choice, styles.cell, on && styles.choiceOn]}>
                     <Text style={[type.title, { fontSize: 17 }, on && { color: colors.onPrimary }]}>{title}</Text>
                     <Text style={[type.small, on && { color: colors.onPrimarySoft }]}>{line}</Text>
                   </Pressable>
@@ -66,7 +75,7 @@ export function OnboardingScreen() {
           </View>
         ) : null}
       </View>
-      <Button label={level === 'bases' ? 'Passer le test' : 'Commencer'} disabled={!instrument || !heard || !level} onPress={() => instrument && finish(instrument, level === 'bases')} style={styles.cta} />
+      <Button label={level && level !== 'debut' ? 'Passer le test' : 'Commencer'} disabled={!instrument || !level} onPress={() => instrument && finish(instrument, level && level !== 'debut' ? level : undefined)} style={styles.cta} />
     </SafeAreaView>
   );
 }
@@ -76,6 +85,8 @@ const styles = StyleSheet.create({
   body: { padding: 24, gap: 18 },
   brand: { fontSize: 44, fontWeight: '900', color: colors.ink, letterSpacing: -1, marginTop: 24 },
   choices: { flexDirection: 'row', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  cell: { flexBasis: '46%', flexGrow: 1, padding: 14 },
   choice: { flex: 1, backgroundColor: colors.card, borderRadius: 22, padding: 18, gap: 4, borderWidth: 2, borderColor: colors.line },
   choiceOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   glyph: { fontSize: 36, marginBottom: 6 },

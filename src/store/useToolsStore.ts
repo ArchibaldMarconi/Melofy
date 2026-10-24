@@ -12,7 +12,7 @@ interface ToolsState {
   swing: number;
   silentBars: 0 | 1 | 2 | 3;
   presets: MetronomePreset[];
-  /** dernier accordage utilisé, resélectionné à l'ouverture */
+  /** accordeur : dernier préréglage hors guitare (chromatique, basse, violon) ; vide = suit l'instrument et l'accordage de l'élève */
   tuning: string;
   set: (p: Partial<Omit<ToolsState, 'set' | 'savePreset' | 'deletePreset'>>) => void;
   savePreset: (p: Omit<MetronomePreset, 'id'>) => void;
@@ -20,7 +20,7 @@ interface ToolsState {
 }
 
 export const useToolsStore = create<ToolsState>()(persist((set) => ({
-  tempo: 90, signature: '4/4', swing: 50, silentBars: 0, presets: [], tuning: 'guitare',
+  tempo: 90, signature: '4/4', swing: 50, silentBars: 0, presets: [], tuning: '',
   set: (p) => set(p),
   savePreset: (p) => set((s) => ({ presets: [{ ...p, id: `${Date.now()}` }, ...s.presets] })),
   deletePreset: (id) => set((s) => ({ presets: s.presets.filter((x) => x.id !== id) })),

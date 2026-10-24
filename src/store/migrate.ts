@@ -2,7 +2,7 @@
 // Chaque version décrit ce qui change ; `migrate` applique toutes les étapes depuis la version sauvegardée.
 // Règle pour les devs : tout renommage d'identifiant ou de champ = une nouvelle version ici + un test.
 
-export const STORE_VERSION = 5;
+export const STORE_VERSION = 6;
 
 /** identifiants d'exercices renommés */
 export const RENAMED_TEMPLATES: Record<string, string> = {
@@ -62,6 +62,11 @@ export function migrate(persisted: unknown, fromVersion: number): AnyState {
       delete d.modes;
       s.deepLessonsDoneDay = d;
     }
+  }
+  if (fromVersion < 6) {
+    // v5 → v6 (0.25.0) : la consigne complète n'est montrée qu'à la 1re rencontre d'un exercice ;
+    // les exercices déjà faits (temps mesuré) comptent comme déjà vus.
+    s.seenTemplates ??= Object.keys((s.avgTimeS as Record<string, number> | undefined) ?? {});
   }
   return s;
 }

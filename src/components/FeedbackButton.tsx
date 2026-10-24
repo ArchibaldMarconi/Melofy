@@ -54,10 +54,10 @@ export function FeedbackButton({ where, compact = false }: { where: string; comp
 
   return (
     <View style={compact ? styles.compact : styles.box}>
-      <Button small variant={compact ? 'texte' : 'contour'} color={colors.accent} label="💬 Donner un retour"
+      <Button small variant={compact ? 'texte' : 'contour'} color={colors.accent} label={compact ? '💬' : '💬 Donner un retour'} accessibilityLabel="Donner un retour"
         onPress={() => { setContext(build()); setOpen(true); }} />
-      {/* ligne de contexte : visible, et ancre du commentaire sur claude.ai */}
-      <Text nativeID={id} style={styles.context} numberOfLines={compact ? 1 : 3}>{context}</Text>
+      {/* ligne de contexte : ancre du commentaire sur claude.ai ; en version compacte, invisible (rien de plus à lire pendant un exercice) */}
+      <Text nativeID={id} style={compact ? styles.hidden : styles.context} numberOfLines={compact ? 1 : 3}>{context}</Text>
       {note ? <Text style={styles.note}>{note}</Text> : null}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
@@ -89,6 +89,7 @@ export function FeedbackButton({ where, compact = false }: { where: string; comp
 }
 
 const styles = StyleSheet.create({
+  hidden: { height: 0, opacity: 0, position: 'absolute' },
   box: { gap: 4 },
   compact: { alignItems: 'flex-end', maxWidth: 220 },
   context: { fontSize: 10, color: colors.inkSoft },
