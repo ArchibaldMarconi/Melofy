@@ -28,12 +28,16 @@ Le son passe par le haut-parleur même en mode silencieux.
 
 La difficulté de chaque exercice suit un escalier (plus dur après 3 réussites nettes, plus facile après un échec) et continue au-delà des niveaux écrits (tempo, longueur, toutes les tonalités, moins d'aide).
 
-## Différences avec la version web de test
+## Téléphone et navigateur
 
-- **Son** : Expo Go n'a pas de Web Audio. Chaque son est synthétisé en JS, écrit en WAV dans le cache et joué par `expo-audio`. Le démarrage d'un son prend quelques dizaines de millisecondes : règle la latence dans Profil pour les exercices de rythme au micro.
-- **Micro** : `AudioStream` d'expo-audio (PCM en temps réel) + détection de hauteur YIN en JS, comme sur le web.
-- **Sauvegarde** : AsyncStorage (sur le téléphone uniquement).
-- **Thème** : le choix clair / sombre de Profil s'applique au prochain lancement.
+Les sons sont synthétisés en JS une seule fois (`src/audio/mixer.ts`), puis joués différemment selon la plateforme :
+
+- **Téléphone (Expo Go)** : `RNAudioEngine.ts`. Expo Go n'a pas de Web Audio : chaque son est écrit en WAV dans le cache et joué par `expo-audio`. Le démarrage prend quelques dizaines de millisecondes : règle la latence dans Moi pour les exercices de rythme au micro. Micro : `AudioStream` d'expo-audio + YIN en JS.
+- **Navigateur** (`npx expo start --web`) : `RNAudioEngine.web.ts`, que Metro choisit tout seul. Web Audio : départ à l'échantillon près, boucles sans trou, aucun fichier. Micro : `getUserMedia`, même analyse. Le navigateur demande l'accès au micro au premier exercice qui en a besoin ; le son démarre au premier toucher (règle des navigateurs).
+- **Sauvegarde** : AsyncStorage (sur l'appareil ; localStorage dans le navigateur).
+- **Thème** : le choix clair / sombre de Moi s'applique au prochain lancement.
+
+Après l'ajout d'un fichier `.web.ts`, redémarre `npx expo start` : Metro ne le voit pas toujours à chaud.
 
 ## Vérifications
 

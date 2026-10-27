@@ -259,15 +259,18 @@ export function MetronomeScreen() {
         {/* presets : visibles dès qu'il y en a, c'est un raccourci */}
         {st.presets.length ? <Text style={styles.section}>Presets</Text> : null}
         {st.presets.length ? st.presets.map((p) => (
-          <Pressable key={p.id} onPress={() => { st.set({ tempo: p.tempo, signature: p.signature, swing: p.swing }); setAuto(p.automation ? { on: true, start: p.tempo, step: p.automation.step, everyBars: p.automation.everyBars, ceiling: p.automation.ceiling ? String(p.automation.ceiling) : '' } : (a) => ({ ...a, on: false })); }}
-            accessibilityRole="button" accessibilityLabel={`Preset ${p.title}`} style={styles.preset}>
-            <View style={{ flex: 1 }}>
-              <Text style={type.body}>{p.title}</Text>
-              <Text style={type.small}>{p.tempo} BPM · {p.signature}{p.swing > 50 ? ` · swing ${p.swing} %` : ''}</Text>
-            </View>
-            {p.automation ? <Text style={[styles.arrow, { color: p.automation.step >= 0 ? colors.success : colors.warn }]}>{p.automation.step >= 0 ? '↗' : '↘'}</Text> : null}
+          // deux boutons côte à côte (et non l'un dans l'autre : un bouton dans un bouton ne marche pas dans un navigateur)
+          <View key={p.id} style={styles.preset}>
+            <Pressable onPress={() => { st.set({ tempo: p.tempo, signature: p.signature, swing: p.swing }); setAuto(p.automation ? { on: true, start: p.tempo, step: p.automation.step, everyBars: p.automation.everyBars, ceiling: p.automation.ceiling ? String(p.automation.ceiling) : '' } : (a) => ({ ...a, on: false })); }}
+              accessibilityRole="button" accessibilityLabel={`Preset ${p.title}`} style={styles.presetMain}>
+              <View style={{ flex: 1 }}>
+                <Text style={type.body}>{p.title}</Text>
+                <Text style={type.small}>{p.tempo} BPM · {p.signature}{p.swing > 50 ? ` · swing ${p.swing} %` : ''}</Text>
+              </View>
+              {p.automation ? <Text style={[styles.arrow, { color: p.automation.step >= 0 ? colors.success : colors.warn }]}>{p.automation.step >= 0 ? '↗' : '↘'}</Text> : null}
+            </Pressable>
             <Pressable onPress={() => st.deletePreset(p.id)} accessibilityRole="button" accessibilityLabel={`Supprimer ${p.title}`} hitSlop={10}><Text style={styles.del}>✕</Text></Pressable>
-          </Pressable>
+          </View>
         )) : null}
       </ScrollView>
 
@@ -314,6 +317,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 8 },
   ceiling: { width: 70, fontSize: 17, fontWeight: '800', color: colors.ink, borderWidth: 2, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, textAlign: 'center' },
   preset: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 14, padding: 12 },
+  presetMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   arrow: { fontSize: 22, fontWeight: '900' },
   del: { fontSize: 18, color: colors.inkSoft, paddingHorizontal: 4 },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },

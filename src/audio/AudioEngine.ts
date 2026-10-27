@@ -1,5 +1,6 @@
 // Interface du moteur audio. L'UI et le moteur d'exercices ne dépendent que de cette interface.
-// Implémentation : ExpoAudioEngine (expo-audio, compatible Expo Go), dans RNAudioEngine.ts.
+// Implémentations : ExpoAudioEngine (expo-audio, compatible Expo Go) dans RNAudioEngine.ts, et WebAudioEngine
+// (Web Audio, navigateur) dans RNAudioEngine.web.ts ; les deux partagent la synthèse de mixer.ts.
 // Cible : moteur natif JSI/C++ prévu dans la stack (métronome précis, YIN natif).
 import type { Instrument, NoteEvent } from '../content/types';
 import type { MicFrame } from './segmenter';

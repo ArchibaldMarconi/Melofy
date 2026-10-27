@@ -1,7 +1,8 @@
 // Moteur audio pour Expo Go (expo-audio + expo-file-system, tous deux inclus dans Expo Go).
-// Expo Go n'a pas de Web Audio : chaque son est donc calculé en JS (synthèse de synth.ts), mixé, encodé en WAV
-// dans le cache, puis joué par un lecteur expo-audio. Le micro passe par AudioStream (PCM en temps réel) et la
-// même chaîne d'analyse que la version web (YIN + segmentation des notes).
+// Expo Go n'a pas de Web Audio : chaque son est donc calculé en JS (mixer.ts), encodé en WAV dans le cache,
+// puis joué par un lecteur expo-audio. Le micro passe par AudioStream (PCM en temps réel) et la même chaîne
+// d'analyse que la version navigateur (YIN + segmentation des notes). Dans un navigateur, Metro prend
+// RNAudioEngine.web.ts à la place (Web Audio), avec la même interface.
 import { AudioModule, createAudioPlayer, requestRecordingPermissionsAsync, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
 import type { Instrument, NoteEvent } from '../content/types';
@@ -10,10 +11,8 @@ import type { AudioEngine, PlayOptions, Playback } from './AudioEngine';
 import type { MicFrame } from './segmenter';
 import { rms, yin } from './yin';
 import { encodeWav } from './wav';
-import { renderDrone, SynthCache, type SynthVoice } from './synth';
-
-const SR = 22050;
-const PEAK: Record<SynthVoice, number> = { piano: 0.55, guitare: 0.6, clic: 0.5, clic_fort: 0.6, bloc: 0.6 };
+import { renderDrone, type SynthVoice } from './synth';
+import { Mixer, SR } from './mixer';
 /** latence de démarrage d'un lecteur (estimation), ajoutée à l'heure de début annoncée */
 const START_LATENCY_MS = 60;
 const clock = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
@@ -28,7 +27,7 @@ async function wavFile(data: Float32Array): Promise<File> {
 export class ExpoAudioEngine implements AudioEngine {
   latencyMs = 0;
   droneVolume = 0.6;
-  private synth = new SynthCache(SR);
+  private mixer = new Mixer();
   private players = new Set<AudioPlayer>();
   private files: File[] = [];
   private drone: AudioPlayer | null = null;
@@ -48,33 +47,7 @@ export class ExpoAudioEngine implements AudioEngine {
     } catch { /* le mode audio par défaut reste utilisable */ }
   }
 
-  warm(instrument: Instrument) {
-    const range = instrument === 'guitare' ? [40, 70] : [55, 84];
-    const center = instrument === 'guitare' ? 50 : 66;
-    const notes: number[] = [];
-    for (let m = range[0]; m <= range[1]; m++) notes.push(m);
-    notes.sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
-    const todo: [SynthVoice, number][] = [['clic', 0], ['clic_fort', 0], ['bloc', 0], ...notes.map((m) => [instrument, m] as [SynthVoice, number])];
-    const step = () => { const j = todo.shift(); if (!j) return; this.synth.get(j[0], j[1]); setTimeout(step, 0); };
-    setTimeout(step, 50);
-  }
-
-  /** ajoute une note au mixage, avec la même enveloppe que la version web (tenue, puis extinction en 0,12 s) */
-  private mixTone(out: Float32Array, startS: number, midi: number, durS: number, voice: SynthVoice, volume: number) {
-    const src = this.synth.get(voice, voice === 'piano' || voice === 'guitare' ? midi : 0);
-    const peak = PEAK[voice] * volume;
-    const at = Math.round(startS * SR);
-    const tonal = voice === 'piano' || voice === 'guitare';
-    const hold = tonal ? Math.round(Math.min(Math.max(durS, 0.12), src.length / SR - 0.1) * SR) : src.length;
-    const rel = Math.round(0.12 * SR);
-    const len = Math.min(src.length, tonal ? hold + rel : src.length);
-    for (let i = 0; i < len; i++) {
-      const j = at + i;
-      if (j >= out.length) break;
-      const env = i < hold ? 1 : Math.exp((-6.9 * (i - hold)) / rel);
-      out[j] += src[i] * peak * env;
-    }
-  }
+  warm(instrument: Instrument) { this.mixer.warm(instrument); }
 
   private async playBuffer(data: Float32Array, volume = 1, loop = false): Promise<AudioPlayer> {
     const f = await wavFile(data);
@@ -120,38 +93,19 @@ export class ExpoAudioEngine implements AudioEngine {
 
   play(events: NoteEvent[], o: PlayOptions): Playback {
     const tempo = o.tempo * (o.rate ?? 1);
-    const voice = (o.instrument ?? 'piano') as SynthVoice;
     let endBeats = 0;
     for (const e of events) endBeats = Math.max(endBeats, e.start + e.dur);
-    const totalMs = beatsToMs(endBeats, tempo);
-    const render = () => {
-      const out = new Float32Array(Math.ceil(((totalMs + 1200) / 1000) * SR));
-      for (const e of events) this.mixTone(out, beatsToMs(e.start, tempo) / 1000, e.midi, (beatsToMs(e.dur, tempo) / 1000) * 0.95, voice, o.volume ?? 1);
-      if (o.lowpassHz) {
-        // passe-bas d'ordre 1 : l'accompagnement sonne plus feutré, la mélodie garde son éclat
-        const a = 1 - Math.exp((-2 * Math.PI * o.lowpassHz) / SR);
-        let y = 0;
-        for (let i = 0; i < out.length; i++) { y += a * (out[i] - y); out[i] = y; }
-      }
-      return out;
-    };
-    return this.schedule(render, o.delayMs ?? 60, totalMs);
+    // le rendu se fait au moment de jouer, pas à l'appel (même comportement qu'avant)
+    return this.schedule(() => this.mixer.renderEvents(events, o).data, o.delayMs ?? 60, beatsToMs(endBeats, tempo));
   }
 
   playNote(midi: number, instrument: Instrument = 'piano') {
-    const out = new Float32Array(Math.round(1.2 * SR));
-    this.mixTone(out, 0, midi, 0.8, instrument, 1);
-    this.playBuffer(out).then((p) => { this.players.add(p); setTimeout(() => this.release(p), 1500); }).catch(() => {});
+    this.playBuffer(this.mixer.renderNote(midi, instrument)).then((p) => { this.players.add(p); setTimeout(() => this.release(p), 1500); }).catch(() => {});
   }
 
   clicks(beats: number, tempo: number, delayMs = 60, perBar = 4): Playback {
     const totalMs = (beats * 60000) / tempo;
-    const render = () => {
-      const out = new Float32Array(Math.ceil(((totalMs + 300) / 1000) * SR));
-      for (let i = 0; i < beats; i++) this.mixTone(out, (i * 60) / tempo, 0, 0.05, i % perBar === 0 ? 'clic_fort' : 'clic', 1);
-      return out;
-    };
-    return this.schedule(render, delayMs, totalMs);
+    return this.schedule(() => this.mixer.renderClickTrack(beats, tempo, perBar).data, delayMs, totalMs);
   }
 
   /** Lecture d'un tampon déjà calculé (métronome, accordeur) : en boucle ou non */
@@ -162,25 +116,13 @@ export class ExpoAudioEngine implements AudioEngine {
     return { stop: () => this.release(p) };
   }
 
-  render(voice: SynthVoice, midi = 0): Float32Array { return this.synth.get(voice, midi); }
+  render(voice: SynthVoice, midi = 0): Float32Array { return this.mixer.render(voice, midi); }
 
-  /** rend plusieurs couches d'événements (accompagnement de jam) en un tampon d'une durée exacte, pour boucler sans trou ;
-   *  ce qui dépasse la fin (résonance) est replié au début de la boucle */
   renderLayers(layers: { notes: NoteEvent[]; voice: SynthVoice; volume: number }[], tempo: number, beats: number): Float32Array {
-    const len = Math.ceil((beatsToMs(beats, tempo) / 1000) * SR);
-    const out = new Float32Array(len + SR);
-    for (const l of layers) for (const e of l.notes) this.mixTone(out, beatsToMs(e.start, tempo) / 1000, e.midi, (beatsToMs(e.dur, tempo) / 1000) * 0.95, l.voice, l.volume);
-    const loop = out.slice(0, len);
-    for (let i = len; i < out.length && i - len < len; i++) loop[i - len] += out[i];
-    return loop;
+    return this.mixer.renderLayers(layers, tempo, beats);
   }
 
-  /** rend une piste de métronome (clics datés en secondes) : temps fort, temps, subdivisions plus douces */
-  renderClicks(clicks: { t: number; kind: 'fort' | 'temps' | 'sub' }[], durS: number): Float32Array {
-    const out = new Float32Array(Math.ceil(durS * SR));
-    for (const c of clicks) this.mixTone(out, c.t, 0, 0.05, c.kind === 'fort' ? 'clic_fort' : 'clic', c.kind === 'sub' ? 0.4 : 1);
-    return out;
-  }
+  renderClicks(clicks: { t: number; kind: 'fort' | 'temps' | 'sub' }[], durS: number): Float32Array { return this.mixer.renderClicks(clicks, durS); }
   get sampleRate() { return SR; }
 
   startDrone(midis: number[]) {
