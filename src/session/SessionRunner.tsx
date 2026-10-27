@@ -2,6 +2,10 @@
 // Une bande fine en haut (quitter, progression) ; à l'entrée d'une partie, une ligne seulement, quand elle change
 // quelque chose pour l'élève (prendre l'instrument, un casque).
 import React, { useRef, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../screens/navigation';
+import { lessonOfConcept } from '../content/deep';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Outcome, PlanItem } from '../content/types';
@@ -29,6 +33,7 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
   where?: string;
 }) {
   const instrument = useUserStore((s) => s.settings.instrument);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [items, setItems] = useState<PlanItem[]>(initial);
   const [i, setI] = useState(0);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -50,6 +55,19 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
       : part === 'oreille' ? `${PART_LABEL[part]} · un casque aide.`
       : PART_LABEL[part]
     : null;
+
+  // la leçon qui explique cet exercice (pour « Je n'ai pas appris ça »)
+  const lesson = lessonOfConcept(t.concepts[0]);
+  const lessonOf = (x: PlanItem) => (x.confirmLesson ? x.confirmLesson : lessonOfConcept(templateById(x.templateId).concepts[0])?.id);
+  const notLearned = lesson ? () => {
+    // sans pénalité : la leçon redevient à découvrir, ses exercices quittent la séance, et on l'ouvre tout de suite
+    const ids = items.filter((x) => lessonOf(x) === lesson.id).map((x) => x.templateId);
+    useUserStore.getState().notLearned(lesson.id, [...new Set([t.id, ...ids])]);
+    const rest = items.filter((x, k) => k <= i || lessonOf(x) !== lesson.id);
+    setItems(rest);
+    navigation.navigate('DeepLesson', { id: lesson.id });
+    if (i + 1 < rest.length) setI(i + 1); else onEnd({ ...res.current, total: rest.length }, false);
+  } : undefined;
 
   const onFinished = (info: ResultInfo, o: Outcome) => {
     const r = res.current;
@@ -110,6 +128,7 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
         onFinished={onFinished}
         onNext={next}
         onSkip={() => { res.current.perfect = false; res.current.skipped += 1; next(); }}
+        onNotLearned={notLearned}
       />
     </SafeAreaView>
   );

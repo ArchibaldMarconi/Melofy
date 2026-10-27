@@ -1,8 +1,8 @@
 // Quiz (identifier, comparer) : une question à la fois, correction immédiate, réécoute de la bonne réponse.
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Instrument, QuizItem } from '../content/types';
-import { audio } from '../audio/RNAudioEngine';
+import { soundGroup } from '../audio/soundGroup';
 import { referenceEvents, REFERENCE_TEMPO } from '../engine/music';
 import { minorReference } from '../engine/chroma';
 import { announce } from '../a11y';
@@ -23,10 +23,17 @@ export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onRe
   const [ids, setIds] = useState<string[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const it = items[i];
+  // les sons de la question : coupés dès que l'élève répond, ou qu'un autre son démarre (jamais deux à la fois)
+  const sounds = useRef(soundGroup()).current;
+  useEffect(() => () => sounds.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const play = useCallback(async () => {
-    if (it.referenceTonic) await audio.play(minor ? minorReference(it.tonic ?? tonic) : referenceEvents(it.tonic ?? tonic), { tempo: REFERENCE_TEMPO, instrument }).done;
-    if (it.stimulus.length) audio.play(it.stimulus, { tempo: it.tempo, rate, instrument });
-  }, [it, tonic, instrument, rate]);
+    const t = sounds.fresh();
+    if (it.referenceTonic) {
+      await sounds.play(minor ? minorReference(it.tonic ?? tonic) : referenceEvents(it.tonic ?? tonic), { tempo: REFERENCE_TEMPO, instrument }).done;
+      if (!sounds.alive(t)) return;
+    }
+    if (it.stimulus.length) sounds.play(it.stimulus, { tempo: it.tempo, rate, instrument });
+  }, [it, tonic, instrument, rate]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { play(); }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [review, setReview] = useState(false);
@@ -36,6 +43,8 @@ export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onRe
     if (i + 1 < items.length) setI(i + 1); else onDone(next);
   };
   const answer = (id: string) => {
+    // répondu avant la fin de l'exemple : on le coupe
+    sounds.stop();
     const next = [...ids, id];
     setIds(next);
     if (id === it.answerId) {
@@ -69,7 +78,7 @@ export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onRe
             <View key={c.id} style={styles.row}>
               {btn}
               <Button small variant="contour" color={color} label="▶" accessibilityLabel={`Écouter : ${c.label}`}
-                onPress={() => audio.play(c.preview!, { tempo: 110, instrument })} />
+                onPress={() => { sounds.fresh(); sounds.play(c.preview!, { tempo: 110, instrument }); }} />
             </View>
           ) : btn;
         })}

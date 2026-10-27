@@ -14,6 +14,7 @@ import type {
 import { MECHANIC_LABEL } from '../content/templates';
 import { displayTitle } from '../content/titles';
 import { audio } from '../audio/RNAudioEngine';
+import { soundGroup } from '../audio/soundGroup';
 import { DEFAULT_GATE, useMic } from '../audio/useMic';
 import { centsToTarget } from '../components/PitchMeter';
 import { generate, mergeParams } from '../engine/generators';
@@ -60,10 +61,12 @@ export interface PlayerProps {
   placement?: boolean;
   /** imposé par la séance : à l'écran (partie 1) ou à l'instrument réel (partie 2) */
   inputOverride?: 'ecran' | 'micro';
+  /** « Je n'ai pas appris ça » : voir la leçon avant d'être évalué (élève mal placé) ; absent = pas de bouton */
+  onNotLearned?: () => void;
 }
 
 
-export function ExercisePlayer({ template: t, params, seed, inSession, onFinished, onNext, onSkip, placement, inputOverride }: PlayerProps) {
+export function ExercisePlayer({ template: t, params, seed, inSession, onFinished, onNext, onSkip, placement, inputOverride, onNotLearned }: PlayerProps) {
   const settings = useUserStore((s) => s.settings);
   const recordResult = useUserStore((s) => s.recordResult);
   const color = domainColor[t.domain];
@@ -130,6 +133,9 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   const answerRef = useRef<() => Answer>(() => ({ kind: 'free', notes: [] }));
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  // les exemples de l'exercice (question, modèle, démonstration, ta version) : jamais deux à la fois ; coupés quand
+  // l'élève répond. Le bourdon et l'accompagnement pendant la saisie n'en font pas partie.
+  const sounds = useRef(soundGroup()).current;
   useEffect(() => () => { clearTimers(); audio.stopAll(); audio.stopDrone(); audio.stopMic(); }, []);
 
   const addHelp = useCallback((lv: number) => setHelps((h) => (h.includes(lv) ? h : [...h, lv])), []);
@@ -212,7 +218,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       // perroquet avec métronome : décompte de 4 temps puis clic sous la réponse
       // (au micro, pas de clic sonore : le micro le prendrait pour une frappe ; le décompte reste affiché)
       const beatMs = 60000 / (v.tempo * rate);
-      if (!micListening()) audio.clicks((v.perBar ?? 4) + v.metronomeCapture, v.tempo * rate, undefined, v.perBar ?? 4);
+      if (!micListening()) sounds.clicks((v.perBar ?? 4) + v.metronomeCapture, v.tempo * rate, undefined, v.perBar ?? 4);
       const cin = v.perBar ?? 4;
       setCount(cin);
       for (let k = 1; k <= cin; k++) timers.current.push(setTimeout(() => setCount(cin - k), k * beatMs));
@@ -228,26 +234,33 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
     }
   }, [v, rate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const playTonic = () => audio.play([{ midi: v.tonic, start: 0, dur: 1 }], { tempo: 80, instrument }).done;
+  const playTonic = () => { sounds.fresh(); return sounds.play([{ midi: v.tonic, start: 0, dur: 1 }], { tempo: 80, instrument }).done; };
 
   // contexte tonal (arpège + accord de tonique) avant les exercices d'oreille
-  const playReference = () => audio.play(v.minorContext ? minorReference(v.tonic) : referenceEvents(v.tonic), { tempo: REFERENCE_TEMPO, instrument }).done;
+  const playReference = () => sounds.play(v.minorContext ? minorReference(v.tonic) : referenceEvents(v.tonic), { tempo: REFERENCE_TEMPO, instrument }).done;
 
   const melodyOnly = useRef(false);
-  const playStimulus = useCallback(async () => {
-    if (v.referenceTonic) await playReference();
-    if (v.clickWithStimulus) audio.clicks(Math.ceil(Math.max(...v.stimulus.map((n) => n.start + n.dur))), v.tempo * rate, undefined, v.perBar ?? 4);
+  /** joue la question (cadence de référence, puis le modèle) ; renvoie faux si un autre son l'a interrompue entre-temps */
+  const playStimulus = useCallback(async (token?: number): Promise<boolean> => {
+    const tok = token ?? sounds.fresh();
+    if (v.referenceTonic) {
+      await playReference();
+      if (!sounds.alive(tok)) return false;
+    }
+    if (v.clickWithStimulus) sounds.clicks(Math.ceil(Math.max(...v.stimulus.map((n) => n.start + n.dur))), v.tempo * rate, undefined, v.perBar ?? 4);
     // audiation : on n'entend pas le modèle avant de répondre, on se l'imagine (il reste disponible pour comparer)
     if (v.stimulus.length && !v.audiate) {
       // perroquet sur accords : l'accompagnement sonne en dessous, moins fort, avec l'autre timbre et feutré (aigus coupés) : la mélodie se détache
-      if (v.stimulusBacking?.length && !melodyOnly.current) audio.play(v.stimulusBacking, { tempo: v.tempo, rate, instrument: instrument === 'piano' ? 'guitare' : 'piano', volume: 0.4, lowpassHz: 700 });
+      if (v.stimulusBacking?.length && !melodyOnly.current) sounds.play(v.stimulusBacking, { tempo: v.tempo, rate, instrument: instrument === 'piano' ? 'guitare' : 'piano', volume: 0.4, lowpassHz: 700 });
       melodyOnly.current = false;
-      await audio.play(v.stimulus, { tempo: v.tempo, rate, instrument: v.stimulusKind === 'rhythm' ? 'bloc' : instrument }).done;
+      await sounds.play(v.stimulus, { tempo: v.tempo, rate, instrument: v.stimulusKind === 'rhythm' ? 'bloc' : instrument }).done;
     }
+    return sounds.alive(tok);
   }, [v, rate, instrument]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listen = useCallback(async () => {
     await audio.init();
+    const tok = sounds.fresh();
     if (introPoint) markPointSeen(introPoint.id);
     if (!placement) markTemplateSeen(t.id);
     resetAnswers();
@@ -259,9 +272,9 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       const beatMs = 60000 / tempo;
       const captureBeats = Math.ceil(v.captureMs / beatMs);
       const clickBeats = v.countInBeats + (v.clickDuringCapture ? captureBeats : 0);
-      const pb = clickBeats > 0 ? audio.clicks(clickBeats, tempo, undefined, v.perBar ?? 4) : null;
+      const pb = clickBeats > 0 ? sounds.clicks(clickBeats, tempo, undefined, v.perBar ?? 4) : null;
       const zero = (pb ? pb.startMs : audio.now() + 60) + v.countInBeats * beatMs;
-      if (v.stimulus.length) audio.play(v.stimulus, { tempo: v.tempo, rate, instrument, delayMs: 60 + v.countInBeats * beatMs });
+      if (v.stimulus.length) sounds.play(v.stimulus, { tempo: v.tempo, rate, instrument, delayMs: 60 + v.countInBeats * beatMs });
       // l'instrument (ou le pad) est affiché dès le décompte : on se place et on frappe le 1er temps pile
       setOrigin(zero);
       setPhase('SAISIE');
@@ -275,7 +288,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       setOrigin(zero);
       return;
     }
-    await playStimulus();
+    if (!(await playStimulus(tok))) return;
     startCapture();
   }, [v, rate, instrument, playStimulus, startCapture]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -308,6 +321,8 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
 
   function submit(override?: Answer) {
     clearTimers();
+    // réponse donnée avant la fin de l'exemple : on le coupe
+    sounds.stop();
     stopBacking();
     let res: ScoreResult;
     if (transcribing && v.transcription) {
@@ -320,7 +335,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
     // « trouve la maison » : la vraie tonique joue juste après ta réponse, pour comparer
     if (v.revealTonic && !transcribing) {
       setRevealed(true);
-      timers.current.push(setTimeout(() => { audio.play([{ midi: v.tonic, start: 0, dur: 2.5 }], { tempo: 60, instrument }); }, 350));
+      timers.current.push(setTimeout(() => { sounds.play([{ midi: v.tonic, start: 0, dur: 2.5 }], { tempo: 60, instrument }); }, 350));
     }
     if (res.success) {
       audio.stopDrone();
@@ -395,17 +410,18 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   }
 
   function playDemo() {
+    sounds.fresh();
     const e = v.expected;
     if (e.kind === 'figures') { replay(); return; }
-    if (e.kind === 'sequence') audio.play(e.notes, { tempo: v.tempo * 0.8, instrument });
-    else if (e.kind === 'rhythm') audio.play(e.onsetsBeats.map((b) => ({ midi: 84, start: b, dur: 0.25 })), { tempo: v.tempo, instrument: 'bloc' });
-    else if (e.kind === 'set') audio.play(e.midis.map((m, i) => ({ midi: m, start: i * 0.5, dur: 1 })), { tempo: 80, instrument });
-    else if (e.kind === 'transcribe') audio.play(e.items.map((d, i) => ({ midi: degreeToMidi(v.tonic, d.degree, d.acc), start: i, dur: 1 })), { tempo: 80, instrument });
+    if (e.kind === 'sequence') sounds.play(e.notes, { tempo: v.tempo * 0.8, instrument });
+    else if (e.kind === 'rhythm') sounds.play(e.onsetsBeats.map((b) => ({ midi: 84, start: b, dur: 0.25 })), { tempo: v.tempo, instrument: 'bloc' });
+    else if (e.kind === 'set') sounds.play(e.midis.map((m, i) => ({ midi: m, start: i * 0.5, dur: 1 })), { tempo: 80, instrument });
+    else if (e.kind === 'transcribe') sounds.play(e.items.map((d, i) => ({ midi: degreeToMidi(v.tonic, d.degree, d.acc), start: i, dur: 1 })), { tempo: 80, instrument });
     else if (e.kind === 'quiz') {
       // quiz : la question en cours, puis l'exemple de la bonne réponse s'il existe
       const it = e.items[Math.min(quizIndex, e.items.length - 1)];
       const ok = it.choices.find((c) => c.id === it.answerId);
-      audio.play(ok?.preview ?? it.stimulus, { tempo: ok?.preview ? 110 : it.tempo, instrument });
+      sounds.play(ok?.preview ?? it.stimulus, { tempo: ok?.preview ? 110 : it.tempo, instrument });
     }
   }
 
@@ -428,25 +444,26 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   })() : null;
 
   function playMine() {
+    sounds.fresh();
     if (e.kind === 'figures') {
       let b = 0;
       const ev = figs.flatMap((f) => { const st = b; b += figureBeats(f); return figureOnsets(f).map((o) => ({ midi: 67, start: st + o, dur: f === 'blanche' ? 1.9 : 0.4 })); });
-      audio.clicks(Math.max(1, b), v.tempo * rate, undefined, v.perBar ?? 4);
-      audio.play(ev, { tempo: v.tempo * rate, instrument });
+      sounds.clicks(Math.max(1, b), v.tempo * rate, undefined, v.perBar ?? 4);
+      sounds.play(ev, { tempo: v.tempo * rate, instrument });
       return;
     }
     if (v.answerUI === 'staff') {
-      audio.play([...(v.staffGiven ?? []), ...staffNotes].map((m, i) => ({ midi: m, start: i, dur: 0.9 })), { tempo: 90, instrument });
+      sounds.play([...(v.staffGiven ?? []), ...staffNotes].map((m, i) => ({ midi: m, start: i, dur: 0.9 })), { tempo: 90, instrument });
       return;
     }
     if (e.kind === 'rhythm') {
       const t0 = Math.min(...taps);
-      audio.play(taps.map((x) => ({ midi: 84, start: (x - t0) / beatMs, dur: 0.25 })), { tempo: v.tempo * rate, instrument: 'bloc' });
+      sounds.play(taps.map((x) => ({ midi: 84, start: (x - t0) / beatMs, dur: 0.25 })), { tempo: v.tempo * rate, instrument: 'bloc' });
     } else if (e.kind === 'transcribe') {
-      audio.play(degrees.map((d, i) => ({ midi: degreeToMidi(v.tonic, d.degree, d.acc), start: i, dur: 0.9 })), { tempo: 90, instrument });
+      sounds.play(degrees.map((d, i) => ({ midi: degreeToMidi(v.tonic, d.degree, d.acc), start: i, dur: 0.9 })), { tempo: 90, instrument });
     } else if (notes.length) {
       const t0 = notes[0].tMs;
-      audio.play(notes.map((n) => ({ midi: Math.round(n.midi), start: (n.tMs - t0) / beatMs, dur: 0.8 })), { tempo: v.tempo * rate, instrument });
+      sounds.play(notes.map((n) => ({ midi: Math.round(n.midi), start: (n.tMs - t0) / beatMs, dur: 0.8 })), { tempo: v.tempo * rate, instrument });
     }
   }
   function playModel() {
@@ -697,6 +714,12 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
         </View>
       ) : null}
 
+      {onNotLearned && !placement && (phase === 'CONSIGNE' || phase === 'FEEDBACK') ? (
+        <Button small variant="texte" color={colors.inkSoft} label="Je n'ai pas appris ça : voir la leçon"
+          accessibilityLabel="Je n'ai pas appris ça : passer cet exercice et voir la leçon qui l'explique"
+          onPress={() => { clearTimers(); sounds.stop(); stopBacking(); audio.stopDrone(); audio.stopMic(); onNotLearned(); }} />
+      ) : null}
+
       {phase === 'FEEDBACK' && last ? (
         <FeedbackPanel
           last={last} color={color} instrument={instrument} revealed={revealed} shake={shake}
@@ -727,7 +750,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       {phase === 'RESULTAT' && result ? (
         <View style={styles.block}>
           <Text style={type.body}>Pas grave : il reviendra bientôt, un peu plus facile.</Text>
-          {revealed ? <Button small variant="contour" color={color} label="▶ Réécouter la vraie tonique" onPress={() => audio.play([{ midi: v.tonic, start: 0, dur: 2.5 }], { tempo: 60, instrument })} /> : null}
+          {revealed ? <Button small variant="contour" color={color} label="▶ Réécouter la vraie tonique" onPress={() => { sounds.fresh(); sounds.play([{ midi: v.tonic, start: 0, dur: 2.5 }], { tempo: 60, instrument }); }} /> : null}
           <Button color={color} label="Suivant" onPress={onNext} />
         </View>
       ) : null}

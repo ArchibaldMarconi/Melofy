@@ -1,6 +1,6 @@
 // Leçon : écouter d'abord, essayer avec les mains (« À toi d'essayer », avant qu'on donne le nom), comprendre
 // (écrans illustrés et jouables, un à la fois), pratiquer, valider. Qui sait déjà peut passer directement la validation.
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import { lessonOpen, lessonState } from '../engine/cursus';
 import type { DeepPractice } from '../content/deep/types';
 import { templateById } from '../content/templates';
 import { audio } from '../audio/RNAudioEngine';
+import { soundGroup } from '../audio/soundGroup';
 import { newSeed } from '../engine/rng';
 import { ExercisePlayer } from '../exercise/ExercisePlayer';
 import { DeepIllustration } from '../components/DeepIllustration';
@@ -55,7 +56,11 @@ export function DeepLessonScreen() {
   const validation = instrument === 'guitare' && lesson.guitarValidation ? lesson.guitarValidation : lesson.validation;
   const results = useRef<Record<number, boolean>>({});
   const accent = '#E0457B';
-  const play = (notes: { midi: number; start: number; dur: number }[], tempo: number) => { audio.init().then(() => audio.play(notes, { tempo, instrument })); };
+  // un exemple à la fois : écouter B coupe A, changer d'écran coupe l'exemple en cours
+  const sounds = useRef(soundGroup()).current;
+  const play = (notes: { midi: number; start: number; dur: number }[], tempo: number) => { audio.init().then(() => { sounds.fresh(); sounds.play(notes, { tempo, instrument }); }); };
+  useEffect(() => { sounds.stop(); }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => sounds.stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const close = () => nav.goBack();
 
   const steps = lesson.screens.length + practice.length + 2;

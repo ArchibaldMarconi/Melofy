@@ -105,6 +105,12 @@ interface UserState {
   /** valide les notions réussies au test de placement (note 2 : le SRS les revérifie vite) */
   /** placement par domaine : compétences (notion × domaine) validées ; les exercices concernés passent au niveau le plus difficile */
   placeOut: (pairs: { conceptId: string; domain: Domain }[]) => void;
+  /**
+   * « Je n'ai pas appris ça » : un élève mal placé (test de placement trop généreux) rencontre une notion qu'il ne
+   * connaît pas. La leçon redevient à découvrir (ses exercices sortent des séances jusqu'à ce qu'il l'ait vue), et
+   * ses exercices repartent du niveau le plus simple.
+   */
+  notLearned: (lessonId: string, templateIds: string[]) => void;
   /** pratique hors exercice (séries chronométrées « Solo ») : une révision de la compétence, si elle est due */
   recordSkillPractice: (skill: SkillId, domain: Domain, success: boolean, precision: number) => void;
 
@@ -271,6 +277,16 @@ export const useUserStore = create<UserState>()(
         set({ techProgress: { ...(s.techProgress ?? {}), [scale]: next } });
       },
       addPracticeXp: (xp) => { if (xp <= 0) return; const s = get(); const today = dayKey(); set({ xpTotal: s.xpTotal + xp, xpByDay: { ...s.xpByDay, [today]: (s.xpByDay[today] ?? 0) + xp } }); },
+      notLearned: (lessonId, templateIds) => {
+        const s = get();
+        const drop = (xs: string[] | undefined) => (xs ?? []).filter((x) => x !== lessonId);
+        const doneDay = { ...(s.deepLessonsDoneDay ?? {}) };
+        delete doneDay[lessonId];
+        const levels = { ...(s.levels ?? {}) };
+        const levelRuns = { ...(s.levelRuns ?? {}) };
+        for (const id of templateIds) { levels[id] = 0; levelRuns[id] = 0; }
+        set({ deepLessonsSeen: drop(s.deepLessonsSeen), deepLessonsDone: drop(s.deepLessonsDone), deepLessonsConfirmed: drop(s.deepLessonsConfirmed), deepLessonsDoneDay: doneDay, levels, levelRuns });
+      },
       recordSkillPractice: (skill, domain, success, precision) => {
         const s = get();
         const now = Date.now();

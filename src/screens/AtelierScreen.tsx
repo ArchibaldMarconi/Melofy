@@ -1,6 +1,6 @@
-// Onglet « Jouer » : les outils (métronome, accordeur), l'entraînement ciblé en un toucher (l'appli choisit les
-// exercices et le niveau), et, replié sous « Personnaliser », le catalogue réglable pour qui veut tout choisir :
-// ear training, rythme, mapping (façon « Solo » de Tom Quayle), technique au métronome, perroquet.
+// Onglet « Jouer » : les outils (métronome, accordeur, jam), puis l'entraînement libre, ouvert sans condition sur
+// tous les domaines (oreille, chant, rythme, lecture, théorie, instrument façon « Solo » de Tom Quayle, technique,
+// improvisation) : on choisit les éléments et la durée de la série. En bas, l'entraînement guidé (l'appli choisit).
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,16 +10,15 @@ import type { RootStackParamList } from './navigation';
 import type { Params } from '../content/types';
 import { newSeed } from '../engine/rng';
 import { INTERVAL_LABEL } from '../engine/chroma';
-import { useUserStore } from '../store/useUserStore';
+import { lessonProgressOf, useUserStore } from '../store/useUserStore';
 import { Button } from '../components/Button';
 import { colors, domainColor, type } from '../theme';
 import { CHORD_TYPES, DEFAULT_DRILL, SCALES, INTERVAL_SHORT, type DrillConfig, type DrillKind, type Order } from '../drills/engine';
 import { DrillRunner } from '../drills/DrillRunner';
 import { LessonExercises } from '../components/LessonExercises';
-import { AREAS, AREA_LABEL, AREA_LINE } from '../content/skills';
+import { AREAS, AREA_LABEL } from '../content/skills';
 import { TEMPLATES } from '../content/templates';
 import { focusPool } from '../engine/focus';
-import { lessonProgressOf } from '../store/useUserStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -59,13 +58,12 @@ function Card({ title, line, color, open, onToggle, children }: { title: string;
 }
 
 const ALL_INTERVALS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-const MINUTES: [number, string][] = [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min']];
+const MINUTES: [number, string][] = [[1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [20, '20 min']];
 
 export function AtelierScreen() {
   const nav = useNavigation<Nav>();
   const st = useUserStore();
   const [drill, setDrill] = useState<DrillConfig | null>(null);
-  const [custom, setCustom] = useState(false);
   if (drill) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -85,26 +83,24 @@ export function AtelierScreen() {
           <Tool glyph="♫" title="Jam" onPress={() => nav.navigate('Jam')} />
         </View>
 
-        <Text style={styles.section}>Entraînement ciblé</Text>
-        <Text style={type.small}>5 minutes sur un domaine : l'appli choisit les exercices et le niveau.</Text>
-        {AREAS.map((a) => {
-          const open = focusPool({ area: a, templates: TEMPLATES, progress, canSing }).length > 0;
-          return (
-            <Pressable key={a} disabled={!open} onPress={() => nav.navigate('Focus', { area: a })} accessibilityRole="button" accessibilityLabel={`Entraînement ciblé : ${AREA_LABEL[a]}`}
-              style={({ pressed }) => [styles.focus, { borderLeftColor: AREA_COLOR[a] }, !open && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={type.title}>{AREA_LABEL[a]}</Text>
-                <Text style={type.small}>{open ? AREA_LINE[a] : 'S\'ouvre avec tes premières leçons'}</Text>
-              </View>
-              <Text style={[styles.play, { color: AREA_COLOR[a] }]}>▶</Text>
-            </Pressable>
-          );
-        })}
+        <Text style={styles.section}>Entraînement libre</Text>
+        <Text style={type.small}>{'Tout est ouvert, quelles que soient tes leçons : choisis un domaine, règle-le, lance. Les exercices s\'enchaînent jusqu\'à la fin de la durée choisie.'}</Text>
+        <Catalogue onDrill={setDrill} />
 
-        <Pressable onPress={() => setCustom((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: custom }} style={styles.disclosure}>
-          <Text style={styles.disclosureText}>{custom ? 'Masquer les réglages ▴' : 'Personnaliser un exercice ▾'}</Text>
-        </Pressable>
-        {custom ? <Catalogue onDrill={setDrill} /> : null}
+        <Text style={styles.section}>{'Ou laisse l\'appli choisir'}</Text>
+        <Text style={type.small}>5 minutes sur un domaine, avec les exercices et le niveau de tes leçons.</Text>
+        <View style={styles.guided}>
+          {AREAS.map((a) => {
+            const open = focusPool({ area: a, templates: TEMPLATES, progress, canSing }).length > 0;
+            return (
+              <Pressable key={a} disabled={!open} onPress={() => nav.navigate('Focus', { area: a })} accessibilityRole="button" accessibilityLabel={`Entraînement guidé : ${AREA_LABEL[a]}`}
+                style={({ pressed }) => [styles.focus, { borderLeftColor: AREA_COLOR[a] }, !open && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
+                <Text style={[type.body, { fontWeight: '900', flex: 1 }]}>{AREA_LABEL[a]}</Text>
+                <Text style={[styles.play, { color: AREA_COLOR[a] }]}>{open ? '▶' : '🔒'}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -149,6 +145,17 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
   const [posTempo, setPosTempo] = useState<number[]>([0]);
   const [parrotScale, setParrotScale] = useState<string[]>(['penta_mineure']);
   const [sightLevel, setSightLevel] = useState<string[]>(['1']);
+  const [dictDeg, setDictDeg] = useState<string[]>(['1-5']);
+  const [dictN, setDictN] = useState<number[]>([4]);
+  const [dictMode, setDictMode] = useState<string[]>(['degres']);
+  const [harmony, setHarmony] = useState<string[]>(['fonctions']);
+  const [singIv, setSingIv] = useState<number[]>([3, 4, 5, 7, 12]);
+  const [readClef, setReadClef] = useState<string[]>(['sol']);
+  const [readRange, setReadRange] = useState<string[]>(['portee']);
+  const [buildKind, setBuildKind] = useState<string[]>(['triades']);
+  const [keyMax, setKeyMax] = useState<number[]>([2]);
+  const [funcSet, setFuncSet] = useState<number[]>([3, 5, 8]);
+  const [funcBelow, setFuncBelow] = useState<string[]>([]);
   // réglages de l'instrument
   const [d, setD] = useState<Omit<DrillConfig, 'kind'>>({ ...DEFAULT_DRILL, notation: st.settings.chordNotation ?? 'maj7' });
   const set = (patch: Partial<Omit<DrillConfig, 'kind'>>) => setD((x) => ({ ...x, ...patch }));
@@ -175,10 +182,10 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
     <View style={{ gap: 12 }}>
         {st.settings.catalogueTest ? <LessonExercises /> : null}
 
-        <Text style={type.small}>Durée d'une série</Text>
-        <Chips options={MINUTES} value={earMinutes} onChange={setEarMinutes} multi={false} color={oc} />
+        <Text style={type.small}>{'Durée d\'une série'}</Text>
+        <Chips options={MINUTES} value={earMinutes} onChange={setEarMinutes} multi={false} color={colors.primary} />
 
-        <Text style={[styles.section, { color: oc }]}>Ear training</Text>
+        <Text style={[styles.sub, { color: oc }]}>Oreille</Text>
         <Card title="Intervalles" line="Mélodiques ou harmoniques, ceux que tu choisis" color={oc} open={open === 'iv'} onToggle={() => toggle('iv')}>
           <Chips options={[['montant', 'Montants'], ['descendant', 'Descendants'], ['harmonique', 'Ensemble']]} value={ivSens} onChange={setIvSens} multi={false} color={oc} />
           <Chips options={ALL_INTERVALS.map((x) => [x, INTERVAL_SHORT[x]] as [number, string])} value={ivSet} onChange={setIvSet} color={oc} />
@@ -201,20 +208,49 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
           <Chips options={['1', 'b2', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'].map((x) => [x, x.replace('b', '♭').replace('#', '♯')] as [string, string])} value={degrees} onChange={setDegrees} color={oc} />
           <Button color={oc} label="Lancer" onPress={() => ear('OR-3-04', { degres: degrees, mineur: false, questions: 8 })} />
         </Card>
+        <Card title="Dictée mélodique" line="Une phrase est jouée : écris-la en degrés ou sur la portée" color={oc} open={open === 'dict'} onToggle={() => toggle('dict')}>
+          <Chips options={[['1-3', 'Notes 1 à 3'], ['1-5', 'Notes 1 à 5'], ['gamme', 'Toute la gamme']]} value={dictDeg} onChange={setDictDeg} multi={false} color={oc} />
+          <Chips options={[[3, '3 notes'], [4, '4 notes'], [5, '5 notes'], [6, '6 notes']]} value={dictN} onChange={setDictN} multi={false} color={oc} />
+          <Chips options={[['degres', 'En degrés (1, 2, 3…)'], ['portee', 'Sur la portée']]} value={dictMode} onChange={setDictMode} multi={false} color={oc} />
+          <Button color={oc} label="Lancer" onPress={() => {
+            const degres = dictDeg[0] === '1-3' ? [1, 2, 3] : dictDeg[0] === '1-5' ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6, 7];
+            ear(dictMode[0] === 'portee' ? 'OR-2-12' : 'OR-2-04', dictMode[0] === 'portee' ? { degres, nb_notes: dictN[0] } : { degres, nb_notes: dictN[0], bourdon: true });
+          }} />
+        </Card>
+        <Card title="Accords et grilles" line="Fonctions, dictée de grille, cadences" color={oc} open={open === 'harm'} onToggle={() => toggle('harm')}>
+          <Chips options={[['fonctions', 'I, IV ou V ?'], ['grille', 'Dictée de grille'], ['grille7', 'Grilles en 7e'], ['cadences', 'Cadences']]} value={harmony} onChange={setHarmony} multi={false} color={oc} />
+          <Button color={oc} label="Lancer" onPress={() => {
+            const h = harmony[0];
+            if (h === 'fonctions') ear('OR-2-08', { questions: 8 });
+            else if (h === 'grille') ear('OR-3-11', { nb_accords: 4, degres: [1, 2, 4, 5, 6] });
+            else if (h === 'grille7') ear('OR-4-03', { nb_accords: 4, degres: [1, 2, 5, 6], septiemes: true });
+            else ear('OR-4-02', { questions: 8, cadences: ['parfaite', 'plagale', 'demi', 'rompue'] });
+          }} />
+        </Card>
 
-        <Text style={[styles.section, { color: rc }]}>Rythme</Text>
+        <Text style={[styles.sub, { color: oc }]}>Chant</Text>
+        <Card title="Chanter les intervalles" line="Une note est jouée : chante l'intervalle demandé au-dessus" color={oc} open={open === 'sing'} onToggle={() => toggle('sing')}>
+          <Chips options={[1, 2, 3, 4, 5, 7, 9, 12].map((x) => [x, INTERVAL_SHORT[x]] as [number, string])} value={singIv} onChange={setSingIv} color={oc} />
+          <Button color={oc} label="Lancer" onPress={() => ear('OR-3-08', { intervalles: singIv })} />
+        </Card>
+
+        <Text style={[styles.sub, { color: rc }]}>Rythme</Text>
         <Card title="Rythme" line="Lire ou reproduire un rythme, avec le métronome" color={rc} open={open === 'ry'} onToggle={() => toggle('ry')}>
-          <Chips options={[['lire', 'Lire et taper'], ['perroquet', 'Reproduire à l\'oreille']]} value={ryMode} onChange={setRyMode} multi={false} color={rc} />
+          <Chips options={[['lire', 'Lire et taper'], ['perroquet', 'Reproduire à l\'oreille'], ['ecrire', 'Écrire ce que j\'entends']]} value={ryMode} onChange={setRyMode} multi={false} color={rc} />
           <Text style={type.small}>Temps par mesure</Text>
           <Chips options={[[2, '2'], [3, '3'], [4, '4'], [5, '5'], [7, '7']]} value={ryMeter} onChange={setRyMeter} multi={false} color={rc} />
           <Text style={type.small}>Tempo</Text>
           <Chips options={[[60, '60'], [70, '70'], [80, '80'], [90, '90'], [100, '100'], [120, '120']]} value={ryTempo} onChange={setRyTempo} multi={false} color={rc} />
           <Text style={type.small}>Figures</Text>
           <Chips options={[['noire', 'Noires'], ['blanche', 'Blanches'], ['soupir', 'Silences'], ['croches', 'Croches'], ['doubles', 'Doubles croches'], ['triolet', 'Triolets'], ['syncope', 'Syncopes']]} value={ryFig} onChange={setRyFig} color={rc} />
-          <Button color={rc} label="Lancer" onPress={() => ear(ryMode[0] === 'lire' ? 'RY-1-03' : 'RY-1-04', { tempo: ryTempo[0], mesure: ryMeter[0], mesures: 2, figures: ryFig.includes('noire') ? ryFig : ['noire', ...ryFig], metronome: true })} />
+          <Button color={rc} label="Lancer" onPress={() => {
+            const figures = ryFig.includes('noire') ? ryFig : ['noire', ...ryFig];
+            if (ryMode[0] === 'ecrire') ear('RY-2-07', { mesures: 2, tempo: ryTempo[0], figures });
+            else ear(ryMode[0] === 'lire' ? 'RY-1-03' : 'RY-1-04', { tempo: ryTempo[0], mesure: ryMeter[0], mesures: 2, figures, metronome: true });
+          }} />
         </Card>
 
-        <Text style={[styles.section, { color: tc }]}>Mapping</Text>
+        <Text style={[styles.sub, { color: tc }]}>{'Sur l\'instrument'}</Text>
         <Card title="Notes" line="Une note s'affiche : trouve-la" color={tc} open={open === 'notes'} onToggle={() => toggle('notes')}>
           <Chips options={instrument === 'guitare'
             ? [[1, 'Niveau 1 · une fois'], [2, 'Niveau 2 · partout'], [3, 'Niveau 3 · dans une zone']]
@@ -244,8 +280,13 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
           {common}
           <Button color={tc} label="Lancer" onPress={() => go('gammes')} />
         </Card>
+        <Card title="Fonctions" line="Une fondamentale est marquée : trouve son 3, son 5…" color={tc} open={open === 'func'} onToggle={() => toggle('func')}>
+          <Chips options={[2, 3, 4, 5, 6, 7, 8].map((x) => [x, x === 8 ? '8 (octave)' : String(x)] as [number, string])} value={funcSet} onChange={setFuncSet} color={tc} />
+          <Chips options={[['dessous', 'Aussi en dessous']]} value={funcBelow} onChange={(v) => setFuncBelow(v.length && funcBelow.length ? [] : v)} color={tc} />
+          <Button color={tc} label="Lancer" onPress={() => ear('TE-2-08', { fonctions: funcSet, nb_cibles: Math.min(3, funcSet.length), dessous: funcBelow.length > 0 })} />
+        </Card>
 
-        <Text style={[styles.section, { color: tc }]}>Technique</Text>
+        <Text style={[styles.sub, { color: tc }]}>Technique</Text>
         <Card title="Gammes au métronome" line="Une gamme, position par position, de plus en plus vite" color={tc} open={open === 'pos'} onToggle={() => toggle('pos')}>
           <Chips options={[['majeure', 'Majeure'], ['mineure', 'Mineure'], ['penta_majeure', 'Penta majeure'], ['penta_mineure', 'Penta mineure'], ['blues', 'Blues'], ['dorien', 'Dorien'], ['mixolydien', 'Mixolydien']]} value={posScale} onChange={setPosScale} multi={false} color={tc} />
           {instrument === 'guitare' ? <Chips options={[['corde', 'Une seule corde'], ...[1, 2, 3, 4, 5].map((x) => [String(x), `Position ${x}`] as [string, string]), ['alea', 'Au hasard']]} value={posBox} onChange={setPosBox} multi={false} color={tc} /> : null}
@@ -268,7 +309,16 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
           {instrument === 'guitare' ? <Button variant="contour" color={tc} label="Formes d'accords" onPress={() => ear('TE-3-06', { accords: ['majeur', 'mineur', 'dom7', 'maj7', 'm7'], guide: posGuide[0] })} /> : null}
         </Card>
 
-        <Text style={[styles.section, { color: domainColor.theorie }]}>Lecture</Text>
+        <Text style={[styles.sub, { color: domainColor.theorie }]}>Lecture</Text>
+        <Card title="Lire les notes" line="Une note sur la portée : nomme-la" color={domainColor.theorie} open={open === 'read'} onToggle={() => toggle('read')}>
+          <Chips options={[['sol', 'Clé de sol'], ['fa', 'Clé de fa']]} value={readClef} onChange={setReadClef} multi={false} color={domainColor.theorie} />
+          <Chips options={[['portee', 'Dans la portée'], ['etendue', 'Avec les lignes en plus']]} value={readRange} onChange={setReadRange} multi={false} color={domainColor.theorie} />
+          <Button color={domainColor.theorie} label="Lancer" onPress={() => {
+            const wide = readRange[0] === 'etendue';
+            if (readClef[0] === 'fa') ear('TH-4-04', { questions: 8, clef: 'fa', de: wide ? 36 : 43, a: wide ? 62 : 57 });
+            else ear('TH-1-03', { questions: 8, de: wide ? 57 : 64, a: wide ? 79 : 77 });
+          }} />
+        </Card>
         <Card title="Lecture à vue en rythme" line="Notes et rythme, au métronome, sans t'arrêter" color={domainColor.theorie} open={open === 'sight'} onToggle={() => toggle('sight')}>
           <Chips options={[['1', 'Noires'], ['2', '+ blanches et croches'], ['3', '+ silences et syncopes']]} value={sightLevel} onChange={setSightLevel} multi={false} color={domainColor.theorie} />
           <Button color={domainColor.theorie} label="Lancer" onPress={() => ear('TE-2-16', sightLevel[0] === '1'
@@ -277,12 +327,35 @@ function Catalogue({ onDrill }: { onDrill: (c: DrillConfig) => void }) {
             : { mesures: 2, figures: ['noire', 'croches', 'soupir', 'syncope'], tempo: 80, de: 55, a: 79 })} />
         </Card>
 
-        <Text style={[styles.section, { color: ic }]}>Improvisation</Text>
+        <Text style={[styles.sub, { color: domainColor.theorie }]}>Théorie</Text>
+        <Card title="Construire" line="Intervalles, accords, accords de 7e, accords enrichis" color={domainColor.theorie} open={open === 'build'} onToggle={() => toggle('build')}>
+          <Chips options={[['intervalles', 'Intervalles'], ['triades', 'Triades'], ['septiemes', 'Accords de 7e'], ['enrichis', '9, sus, 13']]} value={buildKind} onChange={setBuildKind} multi={false} color={domainColor.theorie} />
+          <Button color={domainColor.theorie} label="Lancer" onPress={() => {
+            const k = buildKind[0];
+            if (k === 'intervalles') ear('TH-3-05', { questions: 8, niveau_q: 2 });
+            else if (k === 'triades') ear('TH-3-02', { qualites: ['majeur', 'mineur', 'dim', 'aug'] });
+            else if (k === 'septiemes') ear('TH-4-01', { qualites: ['maj7', 'dom7', 'm7', 'm7b5'] });
+            else ear('TH-6-02', { qualites: ['maj9', 'dom9', 'm9', 'sus4', 'sus2', 'add9'] });
+          }} />
+        </Card>
+        <Card title="Armures" line="Quelle tonalité pour cette armure, et inversement" color={domainColor.theorie} open={open === 'keys'} onToggle={() => toggle('keys')}>
+          <Chips options={[[1, 'Jusqu\'à 1 ♯/♭'], [2, '2'], [3, '3'], [5, '5'], [7, 'Toutes']]} value={keyMax} onChange={setKeyMax} multi={false} color={domainColor.theorie} />
+          <Button color={domainColor.theorie} label="Lancer" onPress={() => ear('TH-2-09', { questions: 8, max: keyMax[0], sens: 'mixte' })} />
+        </Card>
+
+        <Text style={[styles.sub, { color: ic }]}>Improvisation</Text>
         <Card title="Perroquet" line="L'appli joue une mélodie, tu la reproduis" color={ic} open={open === 'par'} onToggle={() => toggle('par')}>
           <Chips options={[[3, '3 notes'], [4, '4 notes'], [6, '6 notes'], [8, '8 notes']]} value={parrotNotes} onChange={setParrotNotes} multi={false} color={ic} />
           <Chips options={Object.entries(SCALES).map(([k, v]) => [k, v.label] as [string, string])} value={parrotScale} onChange={setParrotScale} multi={false} color={ic} />
           <Button color={ic} label="Lancer" onPress={() => ear('IM-3-01', { nb_notes: parrotNotes[0], degres: SCALES[parrotScale[0]].tokens })} />
         </Card>
+        <Pressable onPress={() => nav.navigate('Jam')} accessibilityRole="button" style={({ pressed }) => [styles.card, styles.cardHead, { borderLeftColor: ic }, pressed && { opacity: 0.85 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={type.title}>Jam</Text>
+            <Text style={type.small}>Un accompagnement en boucle pour improviser librement</Text>
+          </View>
+          <Text style={[styles.chev, { color: ic }]}>›</Text>
+        </Pressable>
     </View>
   );
 }
@@ -292,10 +365,10 @@ const styles = StyleSheet.create({
   tool: { flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 18, alignItems: 'center', gap: 4 },
   toolGlyph: { fontSize: 30, color: colors.ink },
   toolTitle: { fontWeight: '900', color: colors.ink },
-  focus: { backgroundColor: colors.card, borderRadius: 18, padding: 14, borderLeftWidth: 5, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64 },
+  focus: { backgroundColor: colors.card, borderRadius: 16, padding: 12, borderLeftWidth: 5, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, flexBasis: '47%', flexGrow: 1 },
+  guided: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sub: { fontSize: 17, fontWeight: '900', marginTop: 10 },
   play: { fontSize: 24, fontWeight: '900' },
-  disclosure: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', marginTop: 8 },
-  disclosureText: { fontSize: 14, fontWeight: '800', color: colors.inkSoft },
   screen: { flex: 1, backgroundColor: colors.paper },
   pad: { padding: 20, gap: 12, paddingBottom: 40 },
   section: { fontSize: 20, fontWeight: '900', marginTop: 8, color: colors.ink },

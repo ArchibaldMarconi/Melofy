@@ -79,7 +79,10 @@ export class ExpoAudioEngine implements AudioEngine {
       timer = setTimeout(async () => {
         if (stopped) return res();
         try {
-          player = await this.playBuffer(render());
+          const p = await this.playBuffer(render());
+          // coupé pendant que le fichier s'écrivait : il ne doit pas démarrer quand même
+          if (stopped) { this.release(p); return res(); }
+          player = p;
           this.players.add(player);
         } catch { /* son indisponible : l'exercice continue */ }
         endTimer = setTimeout(() => { if (player) this.release(player); this.cleanFiles(); res(); }, totalMs + 250);
