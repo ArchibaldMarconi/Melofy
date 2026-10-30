@@ -38,10 +38,12 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   // la première cible s'affiche au montage
   useEffect(() => { targetStart.current = Date.now(); }, []);
 
+  // le compte à rebours tourne tant que la série n'est pas finie, et repart avec « Recommencer »
   useEffect(() => {
-    const iv = setInterval(() => setLeft((s) => { if (s <= 1) { clearInterval(iv); setDone(true); return 0; } return s - 1; }), 1000);
+    if (done) return;
+    const iv = setInterval(() => setLeft((s) => { if (s <= 1) { setDone(true); return 0; } return s - 1; }), 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [done]);
 
   const next = () => {
     const dt = (Date.now() - targetStart.current) / 1000;
