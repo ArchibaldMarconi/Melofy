@@ -403,9 +403,9 @@ const styles = StyleSheet.create({
   dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: FADE },
   block: { gap: 14 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  // carte de lancement : la même marge partout ; le bouton est logé dans ses coins du haut, donc ses coins sont
-  // concentriques aux siens (rayon du bouton + marge)
-  hero: { backgroundColor: colors.primary, borderRadius: radius.play + HERO_PAD, ...curve, padding: HERO_PAD, gap: 12 },
+  // carte de lancement : la même marge partout ; ses coins suivent ceux du bouton logé dans ses coins du haut
+  // (rayon du bouton + marge), resserrés de quelques points pour une carte moins ronde
+  hero: { backgroundColor: colors.primary, borderRadius: radius.play + HERO_PAD - 6, ...curve, padding: HERO_PAD, gap: 12 },
   heroText: { paddingHorizontal: 6 },
   heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.play, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   heroBtnBig: { minHeight: 84 },
