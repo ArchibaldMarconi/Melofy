@@ -8,7 +8,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import Reanimated, { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { PlanItem, WorkoutPart } from '../content/types';
 import { AREAS, AREA_LABEL, skillArea, skillTitle, type Area } from '../content/skills';
 import { TEMPLATES, templateById } from '../content/templates';
@@ -22,7 +22,10 @@ import { Button } from '../components/Button';
 import { useCountUp, usePop } from '../components/Celebration';
 import { Flame } from '../components/Flame';
 import { StepSlider } from '../components/StepSlider';
-import { PartShape } from '../components/PartShape';
+import { PartShape } from '../components/Shape';
+import { Chevron } from '../components/Chevron';
+import { Disclosure } from '../components/Disclosure';
+import { PlayButton } from '../components/PlayButton';
 import { AnimatedPressable, usePress } from '../components/motion';
 import { BADGES } from '../content/badges';
 import { colors, curve, domainColor, mixHex, partColor, radius, type } from '../theme';
@@ -31,8 +34,6 @@ import type { RootStackParamList } from './navigation';
 const AREA_COLOR: Record<Area, string> = { oreille: domainColor.oreille, mains: domainColor.technique, lecture: domainColor.theorie, rythme: domainColor.rythme };
 // marge du haut de la page, comptée dans le centrage de la carte de lancement
 const CONTENT_TOP = 8;
-// marge intérieure de la carte de lancement, identique en X et en Y
-const HERO_PAD = 2 * radius.cardInset;
 // hauteur du fondu au-dessus de la carte de leçon
 const FADE = 48;
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -177,8 +178,8 @@ export function WorkoutScreen() {
                   </View>
                 ) : canStart ? (
                   <View style={styles.hero}>
-                    <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
-                    <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
+                    <PlayButton size="grand" label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
+                    <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} values={[10, 15, 20, 25, 30]} format={(m) => `${m} min`}
                       onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
                       ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
                   </View>
@@ -190,7 +191,7 @@ export function WorkoutScreen() {
                 )}
               </View>
 
-              {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
+              {plan.items.length ? <Disclosure open={planOpen} label="Voir le programme" openLabel="Masquer le programme" onPress={togglePlan} /> : null}
             </View>
             {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
             {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
@@ -228,36 +229,6 @@ export function WorkoutScreen() {
   );
 }
 
-/** bouton « lecture » : sous le doigt il s'enfonce et son ▶ avance, prêt à partir */
-function PlayButton({ label, onPress, disabled, big, accessibilityLabel }: { label: string; onPress: () => void; disabled?: boolean; big?: boolean; accessibilityLabel: string }) {
-  const { p, onPressIn, onPressOut } = usePress();
-  const sink = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.04 * p.get() }] }));
-  const push = useAnimatedStyle(() => ({ transform: [{ translateX: 6 * p.get() }] }));
-  const text = [styles.heroBtnText, big && styles.heroBtnTextBig];
-  return (
-    <AnimatedPressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} disabled={disabled} accessibilityRole="button" accessibilityLabel={accessibilityLabel}
-      style={[styles.heroBtn, big && styles.heroBtnBig, disabled && { opacity: 0.5 }, sink]}>
-      <Reanimated.Text style={[...text, push]}>▶</Reanimated.Text>
-      <Text style={[...text, { flexShrink: 1 }]}>{label}</Text>
-    </AnimatedPressable>
-  );
-}
-
-/** « Voir le programme » : un chevron fixe, vers le bas (fermé) ou vers le haut (ouvert) ; c'est la carte qui s'anime */
-function Disclosure({ open, onPress }: { open: boolean; onPress: () => void }) {
-  const label = open ? 'Masquer le programme' : 'Voir le programme';
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} style={styles.disclosure}>
-      <Text style={styles.disclosureText}>{label}</Text>
-      <View aria-hidden>
-        <Svg width={15} height={15} viewBox="0 0 24 24">
-          <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </Svg>
-      </View>
-    </Pressable>
-  );
-}
-
 /** la prochaine leçon, posée sur la barre d'onglets : sous le doigt la carte se tasse et sa flèche file vers la droite */
 function NextLessonCard({ title, onPress }: { title: string; onPress: () => void }) {
   const { p, onPressIn, onPressOut } = usePress();
@@ -270,7 +241,7 @@ function NextLessonCard({ title, onPress }: { title: string; onPress: () => void
         <Text style={styles.kicker}>Nouvelle leçon</Text>
         <Text style={styles.newLessonTitle} numberOfLines={1}>{title}</Text>
       </View>
-      <Reanimated.Text style={[styles.newLessonGo, push]}>›</Reanimated.Text>
+      <Reanimated.View style={push}><Chevron dir="right" color={colors.accent} size={18} /></Reanimated.View>
     </AnimatedPressable>
   );
 }
@@ -435,20 +406,13 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   // carte de lancement : la même marge partout ; ses coins suivent ceux du bouton logé dans ses coins du haut
   // (rayon du bouton + marge), resserrés de quelques points pour une carte moins ronde
-  hero: { backgroundColor: colors.primary, borderRadius: radius.play + HERO_PAD - 6, ...curve, padding: HERO_PAD, gap: 12 },
+  hero: { backgroundColor: colors.primary, borderRadius: radius.hero, ...curve, padding: radius.heroInset, gap: 12 },
   heroText: { paddingHorizontal: 6 },
-  heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.play, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  heroBtnBig: { minHeight: 84 },
-  heroBtnText: { color: colors.ink, fontSize: 19, fontWeight: '900' },
-  heroBtnTextBig: { fontSize: 24 },
   heroLine: { color: colors.onPrimarySoft, fontSize: 13, textAlign: 'center', paddingHorizontal: 6 },
   card: { backgroundColor: colors.card, borderRadius: radius.card, ...curve, padding: 16, gap: 12 },
-  newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 16, ...curve, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
+  newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.row, ...curve, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
   newLessonTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  newLessonGo: { fontSize: 26, fontWeight: '700', color: colors.accent },
   kicker: { color: colors.accent, fontWeight: '900', fontSize: 13 },
-  disclosure: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44 },
-  disclosureText: { fontSize: 14, fontWeight: '800', color: colors.inkSoft },
   // programme : rangées collées (la ligne passe de l'une à l'autre sans trou)
   plan: { gap: 0 },
   planRow: { flexDirection: 'row' },

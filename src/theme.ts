@@ -57,7 +57,11 @@ export const type = {
  *   pour que les deux courbes partagent le même centre (`control` = `card` − `cardInset`) ; à l'inverse, la carte
  *   qui porte le grand bouton « lecture » (`play`) prend `play` + `cardInset`.
  */
-export const radius = { note: 999, sheet: 22, key: 6, capsule: 999, card: 28, cardInset: 12, control: 16, tile: 20, play: 26 };
+export const radius = { note: 999, sheet: 22, key: 6, capsule: 999, card: 28, cardInset: 12, control: 16, tile: 20, play: 26,
+  /** grande carte violette (Séance, Leçons) : marge identique en X et en Y, coins = bouton + marge, resserrés de 6 */
+  heroInset: 24, hero: 26 + 24 - 6,
+  /** cartes de liste (leçons, entraînements) */
+  row: 16 };
 export const curve = { borderCurve: 'continuous' } as const;
 
 /** mélange de deux couleurs #RRGGBB (t = 0 : a, t = 1 : b), opaque : deux traits qui se croisent ne foncent pas */
@@ -68,7 +72,7 @@ export function mixHex(a: string, b: string, t: number) {
 
 /**
  * Parties de la séance : des nuances du violet principal, de la plus profonde (échauffement) à la plus claire (créer),
- * qui suivent l'avancée dans la séance. C'est la forme (PartShape) qui distingue les parties, pas la couleur.
+ * qui suivent l'avancée dans la séance. C'est la forme (Shape) qui distingue les parties, pas la couleur.
  * Contraste ≥ 3:1 sur une carte, dans les deux thèmes.
  */
 export const partColor: Record<WorkoutPart, string> = isDark

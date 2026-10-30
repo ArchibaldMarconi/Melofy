@@ -18,10 +18,11 @@ const SNAP = { damping: 20, stiffness: 320 };
 // la durée grossit et reprend sa taille sans rebond : un simple zoom
 const ZOOM = { duration: 160, easing: Easing.out(Easing.quad) };
 
-export function StepSlider({ label, value, min, max, step, format, onChange, onSliding, ink = colors.ink, soft = colors.inkSoft, pill = colors.card, fill = colors.accent }: {
+export function StepSlider({ label, value, values, format, onChange, onSliding, ink = colors.ink, soft = colors.inkSoft, pill = colors.card, fill = colors.accent }: {
   /** titre affiché au-dessus et lu par le lecteur d'écran */
   label: string;
-  value: number; min: number; max: number; step: number;
+  /** valeur choisie, parmi `values` : un cran par valeur, dans l'ordre (les écarts peuvent être inégaux : 1, 2, 5, 10…) */
+  value: number; values: number[];
   /** valeur affichée à droite du titre, et lue par le lecteur d'écran */
   format: (v: number) => string;
   onChange: (v: number) => void;
@@ -31,15 +32,17 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   ink?: string; soft?: string; pill?: string; fill?: string;
 }) {
   const [width, setWidth] = useState(0);
-  const count = Math.round((max - min) / step);
+  const count = values.length - 1;
+  // cran de la valeur reçue (la plus proche si elle n'est pas dans la liste)
+  const nearest = (v: number) => values.reduce((best, x, k) => (Math.abs(x - v) < Math.abs(values[best] - v) ? k : best), 0);
   // une case par cran ; la pilule occupe une case et se déplace de case en case
   const seg = width > 0 ? (width - 2 * PAD) / (count + 1) : 0;
-  const k0 = Math.round((value - min) / step);
+  const k0 = nearest(value);
   // pendant le geste, le cran reste local (affichage, points) ; la valeur n'est transmise qu'au lâcher : l'écran
   // parent ne se recalcule pas à chaque cran
   const [live, setLive] = useState<number | null>(null);
   const shownK = live ?? k0;
-  const shown = min + shownK * step;
+  const shown = values[shownK];
 
   const x = useSharedValue(0); // décalage de la pilule
   const pop = useSharedValue(1); // taille de la durée affichée : grossie tant qu'on tient la pilule
@@ -59,7 +62,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   const commit = (k: number, wasHeld: boolean) => {
     setLive(null);
     if (wasHeld) onSliding?.(false);
-    const v = Math.max(min, Math.min(max, min + k * step));
+    const v = values[Math.max(0, Math.min(count, k))];
     if (v !== value) onChange(v);
   };
   const hold = () => onSliding?.(true);
@@ -113,11 +116,11 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
           accessible
           accessibilityRole="adjustable"
           accessibilityLabel={label}
-          accessibilityValue={{ min, max, now: shown, text: format(shown) }}
+          accessibilityValue={{ min: values[0], max: values[count], now: shown, text: format(shown) }}
           accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
           onAccessibilityAction={(e) => {
-            const v = Math.max(min, Math.min(max, value + (e.nativeEvent.actionName === 'increment' ? step : e.nativeEvent.actionName === 'decrement' ? -step : 0)));
-            if (v !== value) onChange(v);
+            const k = Math.max(0, Math.min(count, k0 + (e.nativeEvent.actionName === 'increment' ? 1 : e.nativeEvent.actionName === 'decrement' ? -1 : 0)));
+            if (values[k] !== value) onChange(values[k]);
           }}
         >
           <View style={styles.inner}>
