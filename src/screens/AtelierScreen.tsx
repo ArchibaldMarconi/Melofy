@@ -4,9 +4,9 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from './navigation';
+import type { PlayStackParamList, RootStackParamList } from './navigation';
 import type { Params } from '../content/types';
 import { newSeed } from '../engine/rng';
 import { INTERVAL_LABEL } from '../engine/chroma';
@@ -20,7 +20,8 @@ import { AREAS, AREA_LABEL } from '../content/skills';
 import { TEMPLATES } from '../content/templates';
 import { focusPool } from '../engine/focus';
 
-type Nav = NativeStackNavigationProp<RootStackParamList>;
+/** outils dans l'onglet (Métronome, Accordeur, Jam) ; séries et entraînements par-dessus les onglets */
+type Nav = CompositeNavigationProp<NativeStackNavigationProp<PlayStackParamList>, NativeStackNavigationProp<RootStackParamList>>;
 
 /** chips à sélection multiple ou unique */
 function Chips<T extends string | number>({ options, value, onChange, multi = true, color }: {

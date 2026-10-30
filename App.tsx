@@ -22,13 +22,26 @@ import { PlacementScreen } from './src/screens/PlacementScreen';
 import { WhatsNew } from './src/components/WhatsNew';
 import { unseenReleases } from './src/version';
 import { useUserStore } from './src/store/useUserStore';
-import type { RootStackParamList } from './src/screens/navigation';
+import type { PlayStackParamList, RootStackParamList } from './src/screens/navigation';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const PlayStack = createNativeStackNavigator<PlayStackParamList>();
 
 /** outils ouverts depuis « Jouer » : un en-tête simple avec retour */
 const toolHeader = { headerBackTitle: 'Jouer', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerShadowVisible: false } as const;
+
+/** onglet Jouer : les outils s'ouvrent dans l'onglet, la barre reste visible pour changer de page à tout moment */
+function PlayTab() {
+  return (
+    <PlayStack.Navigator>
+      <PlayStack.Screen name="Atelier" component={AtelierScreen} options={{ headerShown: false, title: 'Jouer' }} />
+      <PlayStack.Screen name="Metronome" component={MetronomeScreen} options={{ ...toolHeader, title: 'Métronome' }} />
+      <PlayStack.Screen name="Accordeur" component={TunerScreen} options={{ ...toolHeader, title: 'Accordeur' }} />
+      <PlayStack.Screen name="Jam" component={JamScreen} options={{ ...toolHeader, title: 'Jam' }} />
+    </PlayStack.Navigator>
+  );
+}
 
 const icon = (glyph: string) => function TabIcon({ color }: { color: string }) { return <Text style={{ fontSize: 20, color }}>{glyph}</Text>; };
 
@@ -38,7 +51,7 @@ function Tabs() {
     <Tab.Navigator initialRouteName="Workout" screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.ink, tabBarInactiveTintColor: colors.tabInactive, tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line }, tabBarLabelStyle: { fontSize: 11 } }}>
       <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarIcon: icon('▶'), tabBarLabel: 'Séance', title: 'Séance' }} />
       <Tab.Screen name="Arbre" component={TreeScreen} options={{ tabBarIcon: icon('♪'), tabBarLabel: 'Leçons', title: 'Leçons' }} />
-      <Tab.Screen name="Pratique" component={AtelierScreen} options={{ tabBarIcon: icon('◎'), tabBarLabel: 'Jouer', title: 'Jouer' }} />
+      <Tab.Screen name="Pratique" component={PlayTab} options={{ tabBarIcon: icon('◎'), tabBarLabel: 'Jouer', title: 'Jouer' }} />
       <Tab.Screen name="Profil" component={ProfileScreen} options={{ tabBarIcon: icon('●'), tabBarLabel: 'Moi', title: 'Moi' }} />
     </Tab.Navigator>
   );
@@ -69,9 +82,6 @@ export default function App() {
           <Stack.Screen name="Practice" component={PracticeScreen} options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="DeepLesson" component={DeepLessonScreen} options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="Focus" component={FocusScreen} options={{ presentation: 'modal', headerShown: false }} />
-          <Stack.Screen name="Metronome" component={MetronomeScreen} options={{ ...toolHeader, title: 'Métronome' }} />
-          <Stack.Screen name="Accordeur" component={TunerScreen} options={{ ...toolHeader, title: 'Accordeur' }} />
-          <Stack.Screen name="Jam" component={JamScreen} options={{ ...toolHeader, title: 'Jam' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
