@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { colors, radius } from '../theme';
 
@@ -15,7 +15,8 @@ import { colors, radius } from '../theme';
 const BAR = 2 * radius.control;
 const PAD = 3;
 const SNAP = { damping: 20, stiffness: 320 };
-const GROW = { damping: 16, stiffness: 420 };
+// la durée grossit et reprend sa taille sans rebond : un simple zoom
+const ZOOM = { duration: 160, easing: Easing.out(Easing.quad) };
 
 export function StepSlider({ label, value, min, max, step, format, onChange, onSliding, ink = colors.ink, soft = colors.inkSoft, pill = colors.card, fill = colors.accent }: {
   /** titre affiché au-dessus et lu par le lecteur d'écran */
@@ -69,7 +70,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
       // un toucher : la durée grossit, la pilule saute sur la case touchée
       const k = Math.max(0, Math.min(count, Math.floor((e.x - PAD) / (seg || 1))));
       cur.set(k);
-      pop.set(withSpring(1.18, GROW));
+      pop.set(withTiming(1.18, ZOOM));
       x.set(withSpring(k * seg, SNAP));
       scheduleOnRN(setLive, k);
     },
@@ -87,7 +88,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
     },
     onFinalize: () => {
       // doigt levé (ou geste repris par le système) : la durée reprend sa taille, la pilule se pose sur son cran
-      pop.set(withSpring(1, GROW));
+      pop.set(withTiming(1, ZOOM));
       x.set(withSpring(cur.get() * seg, SNAP));
       scheduleOnRN(commit, cur.get(), held.get());
       held.set(false);
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
   clip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, overflow: 'hidden' },
   bar: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18 },
   fill: { position: 'absolute', top: 0, left: 0, height: BAR, borderRadius: BAR / 2 },
-  inset: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.4)' },
+  inset: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, boxShadow: 'inset 0 0 4px rgba(0, 0, 0, 0.22)' },
   dot: { position: 'absolute', top: BAR / 2 - 2, width: 4, height: 4, borderRadius: 2, opacity: 0.45 },
   pill: { position: 'absolute', left: PAD, top: PAD, height: BAR - 2 * PAD, borderRadius: (BAR - 2 * PAD) / 2, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.25)' },
 });

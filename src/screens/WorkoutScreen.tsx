@@ -61,7 +61,8 @@ export function WorkoutScreen() {
   const flowStyle = useAnimatedStyle(() => ({ transform: [{ translateY: offset.get() }] }));
   const placed = useRef(false);
   // carte de leçon posée en bas (avec son fondu) : sa hauteur, pour laisser la place au contenu et centrer la carte
-  const [dockH, setDockH] = useState(0);
+  const [dock, setDock] = useState({ w: 0, h: 0 });
+  const dockH = dock.h;
   const before = useRef<Set<string>>(new Set());
   // heure de référence du programme affiché : relevée à l'arrivée sur l'onglet et au retour au programme
   const [planNow, setPlanNow] = useState(() => Date.now());
@@ -155,7 +156,7 @@ export function WorkoutScreen() {
         </View>
       </View>
       <View style={styles.body}>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + dockSpace }]} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 24 + dockSpace }]} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
           {/* tout le contenu glisse d'un bloc (translation : animée sur le fil natif, sans recalculer la mise en page) ;
               invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
           <Reanimated.View style={[styles.flow, { opacity: measured ? 1 : 0 }, flowStyle]}>
@@ -199,19 +200,26 @@ export function WorkoutScreen() {
         {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets ; au-dessus et autour d'elle, le contenu
             qui défile s'efface dans le fond (transparent en haut, couleur du fond en bas) */}
         {showDock && discover ? (
-          <View style={styles.dock} pointerEvents="box-none" onLayout={(e) => setDockH(e.nativeEvent.layout.height)}>
-            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none" pointerEvents="none">
-              <Defs>
-                <LinearGradient id="fondu" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={colors.paper} stopOpacity={0} />
-                  {/* plein dès les trois quarts : rien ne transparaît sous la carte, entre elle et la barre d'onglets.
-                      Le dernier arrêt, à 1, est indispensable sur iOS : sans lui, rien n'est peint après 0,75. */}
-                  <Stop offset="0.75" stopColor={colors.paper} stopOpacity={1} />
-                  <Stop offset="1" stopColor={colors.paper} stopOpacity={1} />
-                </LinearGradient>
-              </Defs>
-              <Rect x="0" y="0" width="100%" height="100%" fill="url(#fondu)" />
-            </Svg>
+          <View style={styles.dock} pointerEvents="box-none" onLayout={(e) => {
+            const { width: w, height: h } = e.nativeEvent.layout;
+            if (w !== dock.w || h !== dock.h) setDock({ w, h });
+          }}>
+            {/* dégradé dessiné à la taille mesurée du bloc, en points : avec des pourcentages, iOS le calait sur une autre
+                hauteur que celle du bloc, et le bas restait transparent */}
+            {dock.h ? (
+              <Svg style={styles.fade} width={dock.w} height={dock.h} viewBox={`0 0 ${dock.w} ${dock.h}`} pointerEvents="none">
+                <Defs>
+                  <LinearGradient id="fondu" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={dock.h}>
+                    <Stop offset="0" stopColor={colors.paper} stopOpacity={0} />
+                    {/* plein dès les trois quarts : rien ne transparaît sous la carte, entre elle et la barre d'onglets.
+                        Le dernier arrêt, à 1, est indispensable sur iOS : sans lui, rien n'est peint après 0,75. */}
+                    <Stop offset="0.75" stopColor={colors.paper} stopOpacity={1} />
+                    <Stop offset="1" stopColor={colors.paper} stopOpacity={1} />
+                  </LinearGradient>
+                </Defs>
+                <Rect x={0} y={0} width={dock.w} height={dock.h} fill="url(#fondu)" />
+              </Svg>
+            ) : null}
             <NextLessonCard title={discover.title} onPress={() => navigation.navigate('DeepLesson', { id: discover.id })} />
           </View>
         ) : null}
@@ -343,7 +351,7 @@ function SituationScreen({ instrument, initial, onGo, onCancel }: { instrument: 
   );
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 40 }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: 40 }]}>
         <Text style={type.display}>Avant ta 1re séance</Text>
         <Text style={type.title}>Joues-tu sur {name} ?</Text>
         <View style={styles.row}>
@@ -381,7 +389,7 @@ function SessionSummary({ s, onClose }: { s: Summary; onClose: () => void }) {
   const lessons = r.confirmed.map((id) => deepLessonById(id)?.title).filter(Boolean) as string[];
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.center, { flexGrow: 1, paddingBottom: 40 }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.center, { flexGrow: 1, paddingBottom: 40 }]}>
         <Animated.Text style={[styles.flame, flame]}>🔥</Animated.Text>
         <Text style={styles.streakNum}>{s.streak} jour{s.streak > 1 ? 's' : ''}</Text>
         <Text style={type.display}>{r.perfect ? 'Séance parfaite !' : 'Séance terminée'}</Text>
@@ -421,6 +429,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   content: { padding: 20, paddingTop: CONTENT_TOP, gap: 14, paddingBottom: 24 },
   dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: FADE },
+  fade: { position: 'absolute', top: 0, left: 0 },
   flow: { gap: 14 },
   block: { gap: 14 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
