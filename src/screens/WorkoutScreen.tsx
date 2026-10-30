@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import type { PlanItem, WorkoutPart } from '../content/types';
 import { AREAS, AREA_LABEL, skillArea, skillTitle, type Area } from '../content/skills';
 import { TEMPLATES, templateById } from '../content/templates';
@@ -153,7 +154,7 @@ export function WorkoutScreen() {
           </View>
         )}
 
-        {plan.items.length ? <Disclosure open={planOpen} t={planT} onPress={togglePlan} /> : null}
+        {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
         {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
         {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
       </ScrollView>
@@ -188,16 +189,16 @@ function SettingsLink({ onPress, children }: { onPress: () => void; children: Re
   );
 }
 
-/** « Voir le programme » : la flèche fait un demi-tour pendant que la carte se déplie (ou se replie) */
-function Disclosure({ open, t, onPress }: { open: boolean; t: Animated.Value; onPress: () => void }) {
-  const { p, onPressIn, onPressOut } = usePress();
+/** « Voir le programme » : un chevron fixe, vers le bas (fermé) ou vers le haut (ouvert) ; c'est la carte qui s'anime */
+function Disclosure({ open, onPress }: { open: boolean; onPress: () => void }) {
   const label = open ? 'Masquer le programme' : 'Voir le programme';
   return (
-    <AnimatedPressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }}
-      style={[styles.disclosure, { transform: [{ scale: lerp(p, 1, 0.95) }] }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} style={styles.disclosure}>
       <Text style={styles.disclosureText}>{label}</Text>
-      <Animated.Text style={[styles.disclosureText, { transform: [{ rotate: t.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }]}>▾</Animated.Text>
-    </AnimatedPressable>
+      <Svg width={14} height={14} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </Svg>
+    </Pressable>
   );
 }
 
@@ -229,7 +230,6 @@ const BRANCH_H = 15;
 function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: 'piano' | 'guitare'; t: Animated.Value }) {
   const of = (p: WorkoutPart) => items.filter((x) => (x.wpart ?? 'revision') === p);
   const parts = PART_ORDER.filter((p) => of(p).length);
-  const mins = (p: WorkoutPart) => Math.max(1, Math.round(of(p).reduce((a, x) => a + (x.estS ?? 60), 0) / 60));
   const titleOf = (x: PlanItem) => {
     const tp = templateById(x.templateId);
     return x.tech ? x.tech.label : x.confirmLesson ? `Validation · ${deepLessonById(x.confirmLesson)?.title}` : displayTitle(tp, x.params, instrument);
@@ -258,7 +258,7 @@ function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: '
               <View style={[styles.stem, { top: '50%', backgroundColor: line }]} />
               <Animated.View style={[styles.shape, { transform: [{ scale: win(i, 0.3, 1) }] }]}><PartShape part={r.part} size={18} /></Animated.View>
             </View>
-            <Text style={styles.planPart}>{PART_LABEL[r.part]}<Text style={styles.planMin}> · {mins(r.part)} min</Text></Text>
+            <Text style={styles.planPart}>{PART_LABEL[r.part]}</Text>
           </Animated.View>
         ) : (
           <Animated.View key={r.key} style={[styles.planRow, { opacity: win(i, 0, 1), transform: [{ translateY: win(i, -6, 0) }] }]}>
@@ -363,17 +363,17 @@ const styles = StyleSheet.create({
   streakCount: { fontSize: 20, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] },
   content: { padding: 20, paddingTop: 8, gap: 14, paddingBottom: 24 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  // carte de lancement : ce qui est posé dedans (bouton, curseur) est concentrique à ses coins
-  hero: { backgroundColor: colors.primary, borderRadius: radius.card, ...curve, padding: radius.cardInset, paddingTop: 16, gap: 12 },
+  // carte de lancement : ses coins suivent ceux du grand bouton qu'elle porte (même centre de courbure)
+  hero: { backgroundColor: colors.primary, borderRadius: radius.play + radius.cardInset, ...curve, padding: radius.cardInset, paddingTop: 16, gap: 12 },
   heroText: { paddingHorizontal: 6 },
-  heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.control, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.play, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   heroBtnBig: { minHeight: 84 },
   heroBtnText: { color: colors.ink, fontSize: 19, fontWeight: '900' },
   heroBtnTextBig: { fontSize: 24 },
   heroLine: { color: colors.onPrimarySoft, fontSize: 13, textAlign: 'center', paddingHorizontal: 6 },
   theme: { color: colors.onPrimary, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   card: { backgroundColor: colors.card, borderRadius: radius.card, ...curve, padding: 16, gap: 12 },
-  newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: radius.card, ...curve, paddingVertical: 10, paddingLeft: 18, paddingRight: 16, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
+  newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 16, ...curve, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
   newLessonTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
   newLessonGo: { fontSize: 26, fontWeight: '700', color: colors.accent },
   kicker: { color: colors.accent, fontWeight: '900', fontSize: 13 },
@@ -387,7 +387,6 @@ const styles = StyleSheet.create({
   stem: { position: 'absolute', left: STEM_X - 1, width: 2, bottom: 0 },
   branch: { position: 'absolute', left: STEM_X - 1, top: 0, width: GUTTER - STEM_X - 4, height: BRANCH_H, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 9 },
   planPart: { flex: 1, paddingVertical: 2, fontSize: 14, fontWeight: '800', color: colors.ink },
-  planMin: { fontWeight: '600', color: colors.inkSoft },
   planItem: { flex: 1, paddingVertical: 5, color: colors.ink },
   row: { flexDirection: 'row', gap: 8 },
   opt: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, borderRadius: radius.capsule, backgroundColor: colors.card, alignItems: 'center' },

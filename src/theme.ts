@@ -51,9 +51,10 @@ export const type = {
  * - coins continus (`curve`, la courbe « squircle » d'iOS) plutôt que des quarts de cercle ;
  * - capsules (rayon = moitié de la hauteur) pour les commandes : pilules, curseurs, choix ;
  * - concentricité : un élément posé dans une carte prend le rayon de la carte moins la marge qui les sépare,
- *   pour que les deux courbes partagent le même centre (`control` = `card` − `cardInset`).
+ *   pour que les deux courbes partagent le même centre (`control` = `card` − `cardInset`) ; à l'inverse, la carte
+ *   qui porte le grand bouton « lecture » (`play`) prend `play` + `cardInset`.
  */
-export const radius = { note: 999, sheet: 22, key: 6, capsule: 999, card: 28, cardInset: 12, control: 16, tile: 20 };
+export const radius = { note: 999, sheet: 22, key: 6, capsule: 999, card: 28, cardInset: 12, control: 16, tile: 20, play: 26 };
 export const curve = { borderCurve: 'continuous' } as const;
 
 /** mélange de deux couleurs #RRGGBB (t = 0 : a, t = 1 : b), opaque : deux traits qui se croisent ne foncent pas */
