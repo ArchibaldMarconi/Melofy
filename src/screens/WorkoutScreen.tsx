@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { PlanItem, WorkoutPart } from '../content/types';
 import { AREAS, AREA_LABEL, skillArea, skillTitle, type Area } from '../content/skills';
 import { TEMPLATES, templateById } from '../content/templates';
@@ -30,6 +30,10 @@ import type { RootStackParamList } from './navigation';
 const AREA_COLOR: Record<Area, string> = { oreille: domainColor.oreille, mains: domainColor.technique, lecture: domainColor.theorie, rythme: domainColor.rythme };
 // marge du haut de la page, comptée dans le centrage de la carte de lancement
 const CONTENT_TOP = 8;
+// marge intérieure de la carte de lancement, identique en X et en Y
+const HERO_PAD = 2 * radius.cardInset;
+// hauteur du fondu au-dessus de la carte de leçon
+const FADE = 48;
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 type Mode = 'plan' | 'situation' | 'running' | 'done';
@@ -55,14 +59,8 @@ export function WorkoutScreen() {
   const [heroBox, setHeroBox] = useState({ y: 0, h: 0 });
   const [offset] = useState(() => new Animated.Value(0));
   const placed = useRef(false);
-  const measured = viewH > 0 && heroBox.h > 0;
-  const centered = measured ? Math.max(0, Math.round(viewH / 2 - CONTENT_TOP - heroBox.y - heroBox.h / 2)) : 0;
-  useEffect(() => {
-    if (planOpen || !measured) return;
-    // au premier affichage, directement au centre ; ensuite (programme replié, carte qui change de taille) en glissant
-    if (!placed.current || reduce) { placed.current = true; offset.setValue(centered); return; }
-    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
-  }, [centered, measured, planOpen, reduce, offset]);
+  // carte de leçon posée en bas (avec son fondu) : sa hauteur, pour laisser la place au contenu et centrer la carte
+  const [dockH, setDockH] = useState(0);
   const before = useRef<Set<string>>(new Set());
   // heure de référence du programme affiché : relevée à l'arrivée sur l'onglet et au retour au programme
   const [planNow, setPlanNow] = useState(() => Date.now());
@@ -91,6 +89,18 @@ export function WorkoutScreen() {
     [st.settings.sessionMinutes, techMin, hasInstrument, canSing, st.settings.instrument, isPlan, planNow, st.deepLessonsSeen?.length, st.deepLessonsDone?.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const discover = lessonsToDiscover(progress, st.settings.instrument)[0];
   const canStart = st.canStartWorkout();
+  const showDock = !plan.needsLesson && !!discover;
+  // centrage dans l'espace libre, entre la barre de titre et le haut de la carte de leçon
+  const dockSpace = showDock ? dockH : 0;
+  const measured = viewH > 0 && heroBox.h > 0 && (!showDock || dockH > 0);
+  const avail = viewH - Math.max(0, dockSpace - FADE);
+  const centered = measured ? Math.max(0, Math.round(avail / 2 - CONTENT_TOP - heroBox.y - heroBox.h / 2)) : 0;
+  useEffect(() => {
+    if (planOpen || !measured) return;
+    // au premier affichage, directement au centre ; ensuite (programme replié, carte qui change de taille) en glissant
+    if (!placed.current || reduce) { placed.current = true; offset.setValue(centered); return; }
+    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
+  }, [centered, measured, planOpen, reduce, offset]);
 
   const start = (o: { hasInstrument: boolean; canSing: boolean }) => {
     st.setSettings(o);
@@ -119,7 +129,6 @@ export function WorkoutScreen() {
   if (mode === 'running') return <SessionRunner items={items} onEnd={onEnd} />;
   if (mode === 'done' && summary) return <SessionSummary s={summary} onClose={backToPlan} />;
 
-  const where = hasInstrument ? (st.settings.instrument === 'guitare' ? 'Avec ta guitare' : 'Avec ton piano') : 'À l\'écran';
   const doneToday = st.lastSessionDay === dayKey();
   // dépliage lent et doux, repli vif ; la carte quitte l'écran une fois repliée (sauf si on la rouvre entre-temps)
   const togglePlan = () => {
@@ -143,50 +152,63 @@ export function WorkoutScreen() {
           <Flame size={24} lit={st.streak > 0} />
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
-        {/* invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
-        <Animated.View style={[styles.block, { marginTop: offset, opacity: measured ? 1 : 0 }]}>
-          {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
+      <View style={styles.body}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + dockSpace }]} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
+          {/* invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
+          <Animated.View style={[styles.block, { marginTop: offset, opacity: measured ? 1 : 0 }]}>
+            {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
 
-          <View onLayout={(e) => {
-            const { y, height } = e.nativeEvent.layout;
-            if (y !== heroBox.y || height !== heroBox.h) setHeroBox({ y, h: height });
-          }}>
-            {plan.needsLesson ? (
-              <View style={styles.hero}>
-                <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
-                <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
-                {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
-                  <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
-                ))}
-              </View>
-            ) : canStart ? (
-              <View style={styles.hero}>
-                {plan.theme && plan.theme.key !== 'auto' ? <Text style={styles.theme}>Tonalité du jour : {plan.theme.label}</Text> : null}
-                <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
-                <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
-                  onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
-                  ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
-                <SettingsLink onPress={() => (navigation as unknown as { navigate: (r: string) => void }).navigate('Profil')}>
-                  <Text style={styles.heroLine}>{where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
-                </SettingsLink>
-              </View>
-            ) : (
-              <View style={styles.card}>
-                <Text style={type.title}>Séance du jour terminée ✓</Text>
-                <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
-              </View>
-            )}
+            <View onLayout={(e) => {
+              const { y, height } = e.nativeEvent.layout;
+              if (y !== heroBox.y || height !== heroBox.h) setHeroBox({ y, h: height });
+            }}>
+              {plan.needsLesson ? (
+                <View style={styles.hero}>
+                  <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
+                  <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
+                  {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
+                    <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
+                  ))}
+                </View>
+              ) : canStart ? (
+                <View style={styles.hero}>
+                  <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
+                  <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
+                    onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
+                    ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
+                </View>
+              ) : (
+                <View style={styles.card}>
+                  <Text style={type.title}>Séance du jour terminée ✓</Text>
+                  <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
+                </View>
+              )}
+            </View>
+
+            {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
+          </Animated.View>
+          {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
+          {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
+        </ScrollView>
+
+        {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets ; au-dessus et autour d'elle, le contenu
+            qui défile s'efface dans le fond (transparent en haut, couleur du fond en bas) */}
+        {showDock && discover ? (
+          <View style={styles.dock} pointerEvents="box-none" onLayout={(e) => setDockH(e.nativeEvent.layout.height)}>
+            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none" pointerEvents="none">
+              <Defs>
+                <LinearGradient id="fondu" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={colors.paper} stopOpacity={0} />
+                  {/* plein dès les trois quarts : rien ne transparaît sous la carte, entre elle et la barre d'onglets */}
+                  <Stop offset="0.75" stopColor={colors.paper} stopOpacity={1} />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#fondu)" />
+            </Svg>
+            <NextLessonCard title={discover.title} onPress={() => navigation.navigate('DeepLesson', { id: discover.id })} />
           </View>
-
-          {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
-        </Animated.View>
-        {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
-        {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
-      </ScrollView>
-
-      {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets */}
-      {!plan.needsLesson && discover ? <NextLessonCard title={discover.title} onPress={() => navigation.navigate('DeepLesson', { id: discover.id })} /> : null}
+        ) : null}
+      </View>
     </SafeAreaView>
   );
 }
@@ -204,25 +226,14 @@ function PlayButton({ label, onPress, disabled, big, accessibilityLabel }: { lab
   );
 }
 
-/** lien vers les réglages de Moi : il pâlit et se resserre sous le doigt */
-function SettingsLink({ onPress, children }: { onPress: () => void; children: React.ReactNode }) {
-  const { p, onPressIn, onPressOut } = usePress();
-  return (
-    <AnimatedPressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityRole="button" accessibilityLabel="Changer les réglages de la séance dans Moi"
-      style={{ opacity: lerp(p, 1, 0.6), transform: [{ scale: lerp(p, 1, 0.97) }] }}>
-      {children}
-    </AnimatedPressable>
-  );
-}
-
 /** « Voir le programme » : un chevron fixe, vers le bas (fermé) ou vers le haut (ouvert) ; c'est la carte qui s'anime */
 function Disclosure({ open, onPress }: { open: boolean; onPress: () => void }) {
   const label = open ? 'Masquer le programme' : 'Voir le programme';
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} style={styles.disclosure}>
       <Text style={styles.disclosureText}>{label}</Text>
-      <Svg width={14} height={14} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <Svg width={15} height={15} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </Svg>
     </Pressable>
   );
@@ -387,19 +398,20 @@ const styles = StyleSheet.create({
   titleBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   streak: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, borderRadius: radius.capsule, paddingHorizontal: 12, minHeight: 40 },
   streakCount: { fontSize: 20, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] },
+  body: { flex: 1 },
   content: { padding: 20, paddingTop: CONTENT_TOP, gap: 14, paddingBottom: 24 },
+  dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: FADE },
   block: { gap: 14 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  // carte de lancement : ses coins reprennent ceux du grand bouton qu'elle porte, agrandis de la marge du haut ;
-  // marges gauche et droite doublées pour aérer
-  hero: { backgroundColor: colors.primary, borderRadius: radius.play + radius.cardInset, ...curve, padding: radius.cardInset, paddingHorizontal: 2 * radius.cardInset, paddingTop: 16, gap: 12 },
+  // carte de lancement : la même marge partout ; le bouton est logé dans ses coins du haut, donc ses coins sont
+  // concentriques aux siens (rayon du bouton + marge)
+  hero: { backgroundColor: colors.primary, borderRadius: radius.play + HERO_PAD, ...curve, padding: HERO_PAD, gap: 12 },
   heroText: { paddingHorizontal: 6 },
   heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.play, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   heroBtnBig: { minHeight: 84 },
   heroBtnText: { color: colors.ink, fontSize: 19, fontWeight: '900' },
   heroBtnTextBig: { fontSize: 24 },
   heroLine: { color: colors.onPrimarySoft, fontSize: 13, textAlign: 'center', paddingHorizontal: 6 },
-  theme: { color: colors.onPrimary, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   card: { backgroundColor: colors.card, borderRadius: radius.card, ...curve, padding: 16, gap: 12 },
   newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 16, ...curve, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
   newLessonTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },

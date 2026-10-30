@@ -122,6 +122,8 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
                 transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [seg + 2 * PAD - width, seg + 2 * PAD - width + 1] }) }] }]} />
             ) : null}
           </View>
+          {/* ombre intérieure par-dessus la barre et son remplissage : la barre paraît creusée dans la carte */}
+          <View style={styles.inset} />
           {seg ? (
             <>
               {/* un point par cran encore libre, à droite de la pilule */}
@@ -149,6 +151,7 @@ const styles = StyleSheet.create({
   clip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, overflow: 'hidden' },
   bar: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18 },
   fill: { position: 'absolute', top: 0, left: 0, height: BAR, borderRadius: BAR / 2 },
+  inset: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 -1px 1px rgba(255, 255, 255, 0.1)' },
   dot: { position: 'absolute', top: BAR / 2 - 2, width: 4, height: 4, borderRadius: 2, opacity: 0.45 },
   pill: { position: 'absolute', left: PAD, top: PAD, height: BAR - 2 * PAD, borderRadius: (BAR - 2 * PAD) / 2, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.25)' },
 });
