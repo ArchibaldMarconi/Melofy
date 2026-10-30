@@ -28,6 +28,8 @@ import { colors, curve, domainColor, mixHex, partColor, radius, type } from '../
 import type { RootStackParamList } from './navigation';
 
 const AREA_COLOR: Record<Area, string> = { oreille: domainColor.oreille, mains: domainColor.technique, lecture: domainColor.theorie, rythme: domainColor.rythme };
+// marge du haut de la page, comptée dans le centrage de la carte de lancement
+const CONTENT_TOP = 8;
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 type Mode = 'plan' | 'situation' | 'running' | 'done';
@@ -47,6 +49,20 @@ export function WorkoutScreen() {
   const [summary, setSummary] = useState<Summary | null>(null);
   // pendant qu'on fait glisser la durée, la page ne défile pas
   const [sliding, setSliding] = useState(false);
+  // programme replié : la carte de lancement se tient au milieu de la page (entre la barre de titre et la carte de
+  // leçon). On mesure la hauteur visible et la place de la carte dans son bloc, puis on décale le bloc.
+  const [viewH, setViewH] = useState(0);
+  const [heroBox, setHeroBox] = useState({ y: 0, h: 0 });
+  const [offset] = useState(() => new Animated.Value(0));
+  const placed = useRef(false);
+  const measured = viewH > 0 && heroBox.h > 0;
+  const centered = measured ? Math.max(0, Math.round(viewH / 2 - CONTENT_TOP - heroBox.y - heroBox.h / 2)) : 0;
+  useEffect(() => {
+    if (planOpen || !measured) return;
+    // au premier affichage, directement au centre ; ensuite (programme replié, carte qui change de taille) en glissant
+    if (!placed.current || reduce) { placed.current = true; offset.setValue(centered); return; }
+    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
+  }, [centered, measured, planOpen, reduce, offset]);
   const before = useRef<Set<string>>(new Set());
   // heure de référence du programme affiché : relevée à l'arrivée sur l'onglet et au retour au programme
   const [planNow, setPlanNow] = useState(() => Date.now());
@@ -110,7 +126,9 @@ export function WorkoutScreen() {
     const open = !planOpen;
     setPlanOpen(open);
     if (open) setPlanShown(true);
-    if (reduce) { planT.setValue(open ? 1 : 0); if (!open) setPlanShown(false); return; }
+    if (reduce) { planT.setValue(open ? 1 : 0); if (open) offset.setValue(0); else setPlanShown(false); return; }
+    // à l'ouverture la carte remonte en haut pendant que le programme se déplie ; au repli elle redescend (effet plus haut)
+    if (open) Animated.timing(offset, { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
     Animated.timing(planT, { toValue: open ? 1 : 0, duration: open ? 700 : 260, easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad), useNativeDriver: ND })
       .start(({ finished }) => { if (finished && !open) setPlanShown(false); });
   };
@@ -125,36 +143,44 @@ export function WorkoutScreen() {
           <Flame size={24} lit={st.streak > 0} />
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!sliding}>
-        {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
+      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
+        {/* invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
+        <Animated.View style={[styles.block, { marginTop: offset, opacity: measured ? 1 : 0 }]}>
+          {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
 
-        {plan.needsLesson ? (
-          <View style={styles.hero}>
-            <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
-            <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
-            {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
-              <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
-            ))}
+          <View onLayout={(e) => {
+            const { y, height } = e.nativeEvent.layout;
+            if (y !== heroBox.y || height !== heroBox.h) setHeroBox({ y, h: height });
+          }}>
+            {plan.needsLesson ? (
+              <View style={styles.hero}>
+                <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
+                <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
+                {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
+                  <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
+                ))}
+              </View>
+            ) : canStart ? (
+              <View style={styles.hero}>
+                {plan.theme && plan.theme.key !== 'auto' ? <Text style={styles.theme}>Tonalité du jour : {plan.theme.label}</Text> : null}
+                <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
+                <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
+                  onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
+                  ink={colors.onPrimary} soft={colors.onPrimarySoft} />
+                <SettingsLink onPress={() => (navigation as unknown as { navigate: (r: string) => void }).navigate('Profil')}>
+                  <Text style={styles.heroLine}>{where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
+                </SettingsLink>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                <Text style={type.title}>Séance du jour terminée ✓</Text>
+                <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
+              </View>
+            )}
           </View>
-        ) : canStart ? (
-          <View style={styles.hero}>
-            {plan.theme && plan.theme.key !== 'auto' ? <Text style={styles.theme}>Tonalité du jour : {plan.theme.label}</Text> : null}
-            <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
-            <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
-              onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
-              ink={colors.onPrimary} soft={colors.onPrimarySoft} />
-            <SettingsLink onPress={() => (navigation as unknown as { navigate: (r: string) => void }).navigate('Profil')}>
-              <Text style={styles.heroLine}>{where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
-            </SettingsLink>
-          </View>
-        ) : (
-          <View style={styles.card}>
-            <Text style={type.title}>Séance du jour terminée ✓</Text>
-            <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
-          </View>
-        )}
 
-        {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
+          {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
+        </Animated.View>
         {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
         {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
       </ScrollView>
@@ -361,10 +387,12 @@ const styles = StyleSheet.create({
   titleBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
   streak: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, borderRadius: radius.capsule, paddingHorizontal: 12, minHeight: 40 },
   streakCount: { fontSize: 20, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] },
-  content: { padding: 20, paddingTop: 8, gap: 14, paddingBottom: 24 },
+  content: { padding: 20, paddingTop: CONTENT_TOP, gap: 14, paddingBottom: 24 },
+  block: { gap: 14 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  // carte de lancement : ses coins suivent ceux du grand bouton qu'elle porte (même centre de courbure)
-  hero: { backgroundColor: colors.primary, borderRadius: radius.play + radius.cardInset, ...curve, padding: radius.cardInset, paddingTop: 16, gap: 12 },
+  // carte de lancement : ses coins reprennent ceux du grand bouton qu'elle porte, agrandis de la marge du haut ;
+  // marges gauche et droite doublées pour aérer
+  hero: { backgroundColor: colors.primary, borderRadius: radius.play + radius.cardInset, ...curve, padding: radius.cardInset, paddingHorizontal: 2 * radius.cardInset, paddingTop: 16, gap: 12 },
   heroText: { paddingHorizontal: 6 },
   heroBtn: { flexDirection: 'row', gap: 10, backgroundColor: colors.card, borderRadius: radius.play, ...curve, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   heroBtnBig: { minHeight: 84 },
