@@ -28,8 +28,12 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   const [width, setWidth] = useState(0);
   const reduce = useReduceMotion();
   const [x] = useState(() => new Animated.Value(0));
-  // la durée affichée rebondit une fois, quand on relâche sur une nouvelle valeur
+  // la durée affichée grossit tant qu'on tient la pilule, et reprend sa taille quand on la lâche
   const [pop] = useState(() => new Animated.Value(1));
+  // pendant le geste, la valeur reste locale (affichage, pilule) ; elle n'est transmise qu'au lâcher : l'écran parent
+  // ne se recalcule pas à chaque cran, le geste reste fluide
+  const [live, setLive] = useState<number | null>(null);
+  const shown = live ?? value;
   const grab = useRef({ x: 0, pageX: 0, from: value, last: value, sliding: false });
   const count = Math.round((max - min) / step);
   // une case par cran ; la pilule occupe une case et se déplace de case en case
@@ -47,12 +51,11 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
     slideTo(indexOf(value));
   }, [value, seg]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const bump = () => {
+  const grow = (on: boolean) => {
     if (reduce) return;
-    pop.setValue(1.18);
-    Animated.spring(pop, { toValue: 1, useNativeDriver: ND, speed: 30, bounciness: 12 }).start();
+    Animated.spring(pop, { toValue: on ? 1.18 : 1, useNativeDriver: ND, speed: 40, bounciness: on ? 6 : 10 }).start();
   };
-  const set = (v: number) => { if (v !== grab.current.last) { grab.current.last = v; onChange(v); } };
+  const set = (v: number) => { if (v !== grab.current.last) { grab.current.last = v; setLive(v); } };
   // position du doigt → pilule centrée sous le doigt, sans sortir de la barre
   const follow = (fx: number) => {
     const tx = Math.max(0, Math.min(count * seg, fx - PAD - seg / 2));
@@ -62,6 +65,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   const begin = (e: GestureResponderEvent) => {
     const fx = e.nativeEvent.locationX;
     grab.current = { x: fx, pageX: e.nativeEvent.pageX, from: value, last: value, sliding: false };
+    grow(true);
     // un toucher : la pilule saute sur la case touchée
     const k = Math.max(0, Math.min(count, Math.floor((fx - PAD) / (seg || 1))));
     set(min + k * step);
@@ -73,23 +77,24 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
     if (!grab.current.sliding) { grab.current.sliding = true; onSliding?.(true); }
     follow(grab.current.x + dx);
   };
-  const release = () => {
-    if (grab.current.last !== grab.current.from) bump();
-    end();
-  };
+  // doigt levé (ou geste repris par le système) : la durée reprend sa taille, la valeur est transmise
   const end = () => {
-    if (!grab.current.sliding) return;
+    grow(false);
+    const { from, last, sliding } = grab.current;
+    if (last !== from) onChange(last);
+    setLive(null);
+    if (!sliding) return;
     grab.current.sliding = false;
     onSliding?.(false);
     // la pilule se pose sur le cran le plus proche
-    slideTo(indexOf(grab.current.last));
+    slideTo(indexOf(last));
   };
 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={[styles.label, { color: soft }]}>{label}</Text>
-        <Animated.Text style={[styles.value, { color: ink, transform: [{ scale: pop }] }]}>{format(value)}</Animated.Text>
+        <Animated.Text style={[styles.value, { color: ink, transform: [{ scale: pop }] }]}>{format(shown)}</Animated.Text>
       </View>
       <View
         style={styles.touch}
@@ -99,16 +104,16 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
         onResponderTerminationRequest={() => false}
         onResponderGrant={begin}
         onResponderMove={move}
-        onResponderRelease={release}
+        onResponderRelease={end}
         onResponderTerminate={end}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={label}
-        accessibilityValue={{ min, max, now: value, text: format(value) }}
+        accessibilityValue={{ min, max, now: shown, text: format(shown) }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={(e) => {
           const v = clamp(value + (e.nativeEvent.actionName === 'increment' ? step : e.nativeEvent.actionName === 'decrement' ? -step : 0));
-          if (v !== value) { onChange(v); bump(); }
+          if (v !== value) onChange(v);
         }}
       >
         {/* rien ne capte le toucher à l'intérieur : locationX reste mesuré depuis le bord de la barre */}
@@ -122,12 +127,13 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
                 transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [seg + 2 * PAD - width, seg + 2 * PAD - width + 1] }) }] }]} />
             ) : null}
           </View>
-          {/* ombre intérieure par-dessus la barre et son remplissage : la barre paraît creusée dans la carte */}
+          {/* ombre intérieure, sans décalage (lumière venue d'en face), sur la barre et son remplissage : la barre paraît
+              creusée dans la carte. La pilule, posée au fond, est dessinée par-dessus : elle ne la reçoit pas. */}
           <View style={styles.inset} />
           {seg ? (
             <>
               {/* un point par cran encore libre, à droite de la pilule */}
-              {Array.from({ length: count + 1 }, (_, k) => k).filter((k) => k > indexOf(value)).map((k) => (
+              {Array.from({ length: count + 1 }, (_, k) => k).filter((k) => k > indexOf(shown)).map((k) => (
                 <View key={k} style={[styles.dot, { left: PAD + (k + 0.5) * seg - 2, backgroundColor: ink }]} />
               ))}
               <Animated.View style={[styles.pill, { width: seg, backgroundColor: pill, transform: [{ translateX: x }] }]} />
@@ -151,7 +157,7 @@ const styles = StyleSheet.create({
   clip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, overflow: 'hidden' },
   bar: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18 },
   fill: { position: 'absolute', top: 0, left: 0, height: BAR, borderRadius: BAR / 2 },
-  inset: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 -1px 1px rgba(255, 255, 255, 0.1)' },
+  inset: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.4)' },
   dot: { position: 'absolute', top: BAR / 2 - 2, width: 4, height: 4, borderRadius: 2, opacity: 0.45 },
   pill: { position: 'absolute', left: PAD, top: PAD, height: BAR - 2 * PAD, borderRadius: (BAR - 2 * PAD) / 2, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.25)' },
 });

@@ -54,7 +54,7 @@ export function WorkoutScreen() {
   // pendant qu'on fait glisser la durée, la page ne défile pas
   const [sliding, setSliding] = useState(false);
   // programme replié : la carte de lancement se tient au milieu de la page (entre la barre de titre et la carte de
-  // leçon). On mesure la hauteur visible et la place de la carte dans son bloc, puis on décale le bloc.
+  // leçon). On mesure la hauteur visible et la place de la carte dans son bloc, puis on fait glisser le contenu.
   const [viewH, setViewH] = useState(0);
   const [heroBox, setHeroBox] = useState({ y: 0, h: 0 });
   const [offset] = useState(() => new Animated.Value(0));
@@ -99,7 +99,7 @@ export function WorkoutScreen() {
     if (planOpen || !measured) return;
     // au premier affichage, directement au centre ; ensuite (programme replié, carte qui change de taille) en glissant
     if (!placed.current || reduce) { placed.current = true; offset.setValue(centered); return; }
-    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: ND }).start();
   }, [centered, measured, planOpen, reduce, offset]);
 
   const start = (o: { hasInstrument: boolean; canSing: boolean }) => {
@@ -137,7 +137,7 @@ export function WorkoutScreen() {
     if (open) setPlanShown(true);
     if (reduce) { planT.setValue(open ? 1 : 0); if (open) offset.setValue(0); else setPlanShown(false); return; }
     // à l'ouverture la carte remonte en haut pendant que le programme se déplie ; au repli elle redescend (effet plus haut)
-    if (open) Animated.timing(offset, { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    if (open) Animated.timing(offset, { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: ND }).start();
     Animated.timing(planT, { toValue: open ? 1 : 0, duration: open ? 700 : 260, easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad), useNativeDriver: ND })
       .start(({ finished }) => { if (finished && !open) setPlanShown(false); });
   };
@@ -154,41 +154,44 @@ export function WorkoutScreen() {
       </View>
       <View style={styles.body}>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + dockSpace }]} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
-          {/* invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
-          <Animated.View style={[styles.block, { marginTop: offset, opacity: measured ? 1 : 0 }]}>
-            {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
+          {/* tout le contenu glisse d'un bloc (translation : animée sur le fil natif, sans recalculer la mise en page) ;
+              invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
+          <Animated.View style={[styles.flow, { opacity: measured ? 1 : 0, transform: [{ translateY: offset }] }]}>
+            <View style={styles.block}>
+              {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
 
-            <View onLayout={(e) => {
-              const { y, height } = e.nativeEvent.layout;
-              if (y !== heroBox.y || height !== heroBox.h) setHeroBox({ y, h: height });
-            }}>
-              {plan.needsLesson ? (
-                <View style={styles.hero}>
-                  <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
-                  <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
-                  {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
-                    <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
-                  ))}
-                </View>
-              ) : canStart ? (
-                <View style={styles.hero}>
-                  <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
-                  <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
-                    onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
-                    ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
-                </View>
-              ) : (
-                <View style={styles.card}>
-                  <Text style={type.title}>Séance du jour terminée ✓</Text>
-                  <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
-                </View>
-              )}
+              <View onLayout={(e) => {
+                const { y, height } = e.nativeEvent.layout;
+                if (y !== heroBox.y || height !== heroBox.h) setHeroBox({ y, h: height });
+              }}>
+                {plan.needsLesson ? (
+                  <View style={styles.hero}>
+                    <Text style={[type.title, styles.heroText, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
+                    <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
+                    {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
+                      <PlayButton key={l.id} label={l.title} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`} />
+                    ))}
+                  </View>
+                ) : canStart ? (
+                  <View style={styles.hero}>
+                    <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
+                    <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
+                      onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
+                      ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
+                  </View>
+                ) : (
+                  <View style={styles.card}>
+                    <Text style={type.title}>Séance du jour terminée ✓</Text>
+                    <Text style={type.body}>Ta prochaine séance gratuite arrive demain. Jouer reste ouvert : métronome, accordeur, jam.</Text>
+                  </View>
+                )}
+              </View>
+
+              {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
             </View>
-
-            {plan.items.length ? <Disclosure open={planOpen} onPress={togglePlan} /> : null}
+            {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
+            {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
           </Animated.View>
-          {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
-          {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
         </ScrollView>
 
         {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets ; au-dessus et autour d'elle, le contenu
@@ -199,8 +202,10 @@ export function WorkoutScreen() {
               <Defs>
                 <LinearGradient id="fondu" x1="0" y1="0" x2="0" y2="1">
                   <Stop offset="0" stopColor={colors.paper} stopOpacity={0} />
-                  {/* plein dès les trois quarts : rien ne transparaît sous la carte, entre elle et la barre d'onglets */}
+                  {/* plein dès les trois quarts : rien ne transparaît sous la carte, entre elle et la barre d'onglets.
+                      Le dernier arrêt, à 1, est indispensable sur iOS : sans lui, rien n'est peint après 0,75. */}
                   <Stop offset="0.75" stopColor={colors.paper} stopOpacity={1} />
+                  <Stop offset="1" stopColor={colors.paper} stopOpacity={1} />
                 </LinearGradient>
               </Defs>
               <Rect x="0" y="0" width="100%" height="100%" fill="url(#fondu)" />
@@ -264,7 +269,8 @@ const BRANCH_H = 15;
  * d'un accord qui relie ses notes. `t` (0 → 1) le déroule de haut en bas : la forme éclot, puis les exercices
  * s'écoulent le long de la ligne ; au repli, le même chemin à l'envers.
  */
-function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: 'piano' | 'guitare'; t: Animated.Value }) {
+// mémorisé : l'écran se redessine souvent (réglages, dépliage), le programme seulement quand ses exercices changent
+const PlanDetail = React.memo(function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: 'piano' | 'guitare'; t: Animated.Value }) {
   const of = (p: WorkoutPart) => items.filter((x) => (x.wpart ?? 'revision') === p);
   const parts = PART_ORDER.filter((p) => of(p).length);
   const titleOf = (x: PlanItem) => {
@@ -309,7 +315,7 @@ function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: '
       })}
     </Animated.View>
   );
-}
+});
 
 /** « As-tu ton instrument ? Peux-tu chanter ? » : demandé une seule fois, puis modifiable dans Moi */
 function SituationScreen({ instrument, initial, onGo, onCancel }: { instrument: 'piano' | 'guitare'; initial: { hasInstrument: boolean; canSing: boolean }; onGo: (o: { hasInstrument: boolean; canSing: boolean }) => void; onCancel: () => void }) {
@@ -401,6 +407,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   content: { padding: 20, paddingTop: CONTENT_TOP, gap: 14, paddingBottom: 24 },
   dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: FADE },
+  flow: { gap: 14 },
   block: { gap: 14 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   // carte de lancement : la même marge partout ; ses coins suivent ceux du bouton logé dans ses coins du haut
