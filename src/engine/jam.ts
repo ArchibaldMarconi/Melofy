@@ -1,7 +1,7 @@
 // Jam : un accompagnement en boucle (batterie légère, basse, accords) sur une grille, dans un style, pour improviser.
 // Tout est calculé ici (pur, testable) ; l'écran ne fait que le jouer et l'afficher.
 import type { NoteEvent } from '../content/types';
-import { NAMES_FR } from './music';
+import { mod12, NAMES_FR } from './music';
 
 export type Quality = 'maj' | 'min' | 'dom7' | 'maj7' | 'm7';
 export interface JamChord { root: number; quality: Quality }
@@ -78,7 +78,8 @@ export function buildJam(prog: Progression, style: Style, keyPc: number, tempo: 
   const reps = prog.bars.length >= 8 ? 1 : 2;
   const bars = Array.from({ length: reps }, () => prog.bars).flat();
   const bassBase = 36 + keyPc;
-  const chordBase = 52 + keyPc;
+  // accords : chaque note de l'accord placée dans la même octave glissante (de ré3 à do♯4 en do), voicing serré
+  const chordLow = 50 + keyPc;
   const comp: NoteEvent[] = [];
   const bass: NoteEvent[] = [];
   const hat: NoteEvent[] = [];
@@ -87,7 +88,7 @@ export function buildJam(prog: Progression, style: Style, keyPc: number, tempo: 
   bars.forEach((ch, b) => {
     const t0 = b * 4;
     // voicing serré autour du milieu du clavier (pas de sauts d'un accord à l'autre)
-    const voice = Q[ch.quality].semis.map((s) => { let m = chordBase + ((ch.root + s) % 12); if (m > chordBase + 9) m -= 12; return m; });
+    const voice = chordPcs(ch, keyPc).map((pc) => chordLow + mod12(pc - chordLow));
     for (const h of COMP[style.id]) for (const m of voice) comp.push({ midi: m, start: t0 + h.at, dur: h.dur });
     // fondamentale ramenée entre sol grave et fa♯ (31 à 42) : la basse reste grave sans tomber dans l'inaudible
     let root = bassBase + ch.root;

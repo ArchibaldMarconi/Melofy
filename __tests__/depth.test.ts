@@ -2,7 +2,7 @@
 // le repiquage de phrases longues, et le jam pour improviser sur une grille.
 import { templateById } from '../src/content/templates';
 import { generate } from '../src/engine/generators';
-import { buildJam, chordLabel, chordPcs, PROGRESSIONS, STYLES } from '../src/engine/jam';
+import { buildJam, chordLabel, chordPcs, JAM_KEYS, PROGRESSIONS, STYLES } from '../src/engine/jam';
 import { DEEP_LESSONS } from '../src/content/deep';
 import { lessonsFromConcepts } from '../src/engine/cursus';
 import { mod12 } from '../src/engine/music';
@@ -76,6 +76,19 @@ describe('jam', () => {
       expect(avg(bass.notes)).toBeLessThan(avg(comp.notes) - 7);
       expect(Math.min(...bass.notes.map((n) => n.midi))).toBeGreaterThanOrEqual(28);
       for (const l of j.layers) for (const n of l.notes) expect(n.start).toBeLessThan(j.beats);
+    }
+  });
+  test('l\'accompagnement joue les notes de l\'accord affiché, sur sa fondamentale, dans chaque tonalité', () => {
+    for (const p of PROGRESSIONS) for (const { pc: keyPc } of JAM_KEYS) {
+      const j = buildJam(p, STYLES[0], keyPc, 92, 'piano');
+      const [comp, bass] = j.layers;
+      j.bars.forEach((_, b) => {
+        const ch = p.bars[b % p.bars.length];
+        const inBar = (n: { start: number }) => n.start >= b * 4 && n.start < b * 4 + 4;
+        const sounded = [...new Set(comp.notes.filter(inBar).map((n) => mod12(n.midi)))].sort((x, y) => x - y);
+        expect(sounded).toEqual([...chordPcs(ch, keyPc)].sort((x, y) => x - y));
+        expect(mod12(bass.notes.filter(inBar)[0].midi)).toBe(mod12(keyPc + ch.root));
+      });
     }
   });
   test('noms d\'accords et notes à viser', () => {

@@ -3,6 +3,7 @@
 //  - guitare : corde pincée Karplus-Strong avec retard fractionnaire (passe-tout) pour une justesse exacte
 //  - piano   : partiels inharmoniques (corde raide), deux cordes légèrement désaccordées, attaque de marteau
 //  - clic / bloc : percussions courtes pour le métronome et les rythmes
+// Tout est en tempérament égal (la = 440 Hz) : la fondamentale de chaque note, et les hauteurs des percussions.
 import { midiToFreq } from '../engine/music';
 
 export type SynthVoice = 'piano' | 'guitare' | 'clic' | 'clic_fort' | 'bloc';
@@ -66,12 +67,14 @@ export function renderPiano(midi: number, sr: number, durS = 2.5): Float32Array 
   const baseDecay = 0.9 + Math.max(0, midi - 48) * 0.05; // aigus plus brefs
   // 10 partiels suffisent à l'oreille ; le désaccord des deux cordes ne s'entend que sur les 4 premiers
   const partials = Math.min(10, Math.floor((sr / 2.2) / f0));
-  const detune = [1, Math.pow(2, 0.6 / 1200)];
+  // deux cordes à ±0,3 cent : le battement reste, la hauteur moyenne est juste
+  const detune = [Math.pow(2, -0.3 / 1200), Math.pow(2, 0.3 / 1200)];
   for (let k = 1; k <= partials; k++) {
-    const fk = k * f0 * Math.sqrt(1 + B * k * k);
+    // raideur : les partiels s'étirent vers l'aigu, la fondamentale reste sur la note (comme un piano accordé)
+    const fk = k * f0 * Math.sqrt((1 + B * k * k) / (1 + B));
     const amp = Math.pow(k, -1.25) * (k === 1 ? 1 : 0.8) * (1 - 0.35 * Math.sin((Math.PI * k) / 7) ** 2);
     const decay = baseDecay * (1 + 0.45 * (k - 1));
-    for (const d of k <= 4 ? detune : detune.slice(0, 1)) {
+    for (const d of k <= 4 ? detune : [1]) {
       // oscillateur amorti par rotation complexe : pas de sin/exp par échantillon
       const w = (2 * Math.PI * fk * d) / sr;
       const r = Math.exp(-decay / sr);
@@ -102,12 +105,14 @@ export function renderPiano(midi: number, sr: number, durS = 2.5): Float32Array 
 export function renderPerc(kind: 'clic' | 'clic_fort' | 'bloc', sr: number): Float32Array {
   const durS = kind === 'bloc' ? 0.12 : 0.05;
   const out = new Float32Array(Math.floor(sr * durS));
-  const f = kind === 'clic_fort' ? 2400 : kind === 'clic' ? 1700 : 820;
-  const rnd = noise(f);
+  // hauteurs du tempérament égal : clic la6, clic fort mi7, bloc la5 avec un partiel à mi7
+  const f = midiToFreq(kind === 'clic_fort' ? 100 : kind === 'clic' ? 93 : 81);
+  const f2 = midiToFreq(100);
+  const rnd = noise(kind === 'clic_fort' ? 2400 : kind === 'clic' ? 1700 : 820);
   for (let n = 0; n < out.length; n++) {
     const t = n / sr;
     const env = Math.exp(-t * (kind === 'bloc' ? 45 : 110));
-    out[n] = env * (Math.sin(2 * Math.PI * f * t) + (kind === 'bloc' ? 0.6 * Math.sin(2 * Math.PI * f * 2.7 * t) : 0) + 0.15 * rnd() * Math.exp(-t * 400));
+    out[n] = env * (Math.sin(2 * Math.PI * f * t) + (kind === 'bloc' ? 0.6 * Math.sin(2 * Math.PI * f2 * t) : 0) + 0.15 * rnd() * Math.exp(-t * 400));
   }
   return normalize(out, kind === 'clic' ? 0.6 : 0.85);
 }

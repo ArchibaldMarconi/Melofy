@@ -131,6 +131,32 @@ describe('synthèse', () => {
   test.each([48, 60, 64, 67, 72, 79])('piano juste à ±8 cents (midi %i)', (m) => {
     expect(Math.abs(centsOff(renderPiano(m, 44100), m))).toBeLessThan(8);
   });
+  // la fréquence de rendu de l'appli (22 050 Hz) : fondamentale mesurée finement (balayage au 1/10 de cent)
+  const { renderPerc } = require('../src/audio/synth');
+  const { SR } = require('../src/audio/mixer');
+  const peakCents = (buf: Float32Array, midi: number) => {
+    const f0 = 440 * Math.pow(2, (midi - 69) / 12);
+    const len = Math.min(buf.length, Math.round(0.4 * SR));
+    const seg = Float64Array.from(buf.subarray(0, len), (x, i) => x * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (len - 1))));
+    const power = (f: number) => {
+      const k = 2 * Math.cos((2 * Math.PI * f) / SR);
+      let s1 = 0, s2 = 0;
+      for (let i = 0; i < seg.length; i++) { const s = seg[i] + k * s1 - s2; s2 = s1; s1 = s; }
+      return s1 * s1 + s2 * s2 - k * s1 * s2;
+    };
+    let best = 0, bm = -1;
+    for (let c = -60; c <= 60; c += 0.1) { const m = power(f0 * Math.pow(2, c / 1200)); if (m > bm) { bm = m; best = c; } }
+    return best;
+  };
+  test.each([40, 52, 64, 76, 88])('guitare en tempérament égal à ±1 cent, à la fréquence de l\'appli (midi %i)', (m) => {
+    expect(Math.abs(peakCents(renderGuitar(m, SR), m))).toBeLessThan(1);
+  });
+  test.each([31, 48, 60, 72, 84, 96])('piano en tempérament égal à ±1 cent, à la fréquence de l\'appli (midi %i)', (m) => {
+    expect(Math.abs(peakCents(renderPiano(m, SR), m))).toBeLessThan(1);
+  });
+  test.each([['clic', 93], ['clic_fort', 100], ['bloc', 81]])('percussion %s sur une note du tempérament égal (midi %i)', (kind, m) => {
+    expect(Math.abs(peakCents(renderPerc(kind, SR), m as number))).toBeLessThan(3);
+  });
   test('rendu piano rapide', () => {
     const t = Date.now();
     for (let m = 60; m < 72; m++) renderPiano(m, 44100);
