@@ -166,7 +166,7 @@ export function WorkoutScreen() {
                 <PlayButton big label="Commencer" onPress={onStart} disabled={plan.items.length === 0} accessibilityLabel="Commencer la séance" />
                 <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
                   onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
-                  ink={colors.onPrimary} soft={colors.onPrimarySoft} />
+                  ink={colors.onPrimary} soft={colors.onPrimarySoft} fill={colors.onPrimaryTint} />
                 <SettingsLink onPress={() => (navigation as unknown as { navigate: (r: string) => void }).navigate('Profil')}>
                   <Text style={styles.heroLine}>{where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
                 </SettingsLink>

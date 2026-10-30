@@ -17,6 +17,8 @@ const light = {
   success: '#1E7D50', danger: '#C8364F', warn: '#93650D', gold: '#D9A21B', silver: '#9AA6B8', bronze: '#B0713A',
   white: '#FFFFFF', hintBg: '#FFF4D6', dangerBg: '#FDECEF', successBg: '#CDEBDD', keyTonic: '#EFEAFB', keyLabel: '#CFC6E8',
   onPrimarySoft: '#D8D2F0', onPrimaryFaint: '#B9B0DC', tabInactive: '#6F6895', medalStart: '#E4DEF3',
+  /** violet clair posé sur la carte principale (partie remplie du curseur de durée) */
+  onPrimaryTint: '#8E78F0',
   /** texte posé sur un aplat de couleur (boutons, puces, têtes de notes) : contraste ≥ 4,5:1 */
   onFill: '#FFFFFF',
 };
@@ -26,6 +28,7 @@ const dark: typeof light = {
   success: '#3BBF83', danger: '#F06A82', warn: '#E6A93A', gold: '#E8B93A', silver: '#AEB8C8', bronze: '#C88A52',
   white: '#FFFFFF', hintBg: '#3A3220', dangerBg: '#3D1E2A', successBg: '#1E4636', keyTonic: '#DCD3FA', keyLabel: '#8E86B5',
   onPrimarySoft: '#1B1638', onPrimaryFaint: '#1B1638', tabInactive: '#8A82B5', medalStart: '#4B4378',
+  onPrimaryTint: '#CDBFFF',
   onFill: '#14112A',
 };
 
