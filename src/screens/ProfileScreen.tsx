@@ -44,8 +44,8 @@ export function ProfileScreen() {
 
         <Progress />
 
+        {/* la durée se règle sur l'écran Séance, sous « Commencer » */}
         <Group title="Ta séance" initiallyOpen>
-          <Choice label="Durée" value={String(st.settings.sessionMinutes)} options={[10, 15, 20, 25, 30].map((m) => [String(m), `${m} min`] as [string, string])} onChange={(v) => st.setSettings({ sessionMinutes: Number(v) })} />
           <Choice label="Module technique" value={String(st.settings.techniqueMinutes ?? 0)} options={[['0', 'Non'], ['5', '+5 min'], ['10', '+10 min']]} onChange={(v) => st.setSettings({ techniqueMinutes: Number(v) as 0 | 5 | 10 })} />
           <Toggle label={`Je joue sur ${st.settings.instrument === 'guitare' ? 'ma guitare' : 'mon piano'} (l'appli m'écoute)`} value={st.settings.hasInstrument ?? true} onChange={(v) => st.setSettings({ hasInstrument: v })} />
           <Toggle label="Je peux chanter" value={st.settings.canSing ?? true} onChange={(v) => st.setSettings({ canSing: v })} />
