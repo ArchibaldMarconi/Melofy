@@ -1,6 +1,7 @@
 // Une forme par partie de la séance, comme les têtes de notes en notation « shape notes » : la forme guide l'œil,
 // la couleur (une nuance du violet principal) ne fait que suivre l'avancée dans la séance.
 import React from 'react';
+import { View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { WorkoutPart } from '../content/types';
 import { partColor } from '../theme';
@@ -23,10 +24,13 @@ export function PartShape({ part, size = 18 }: { part: WorkoutPart; size?: numbe
   const shape = PART_SHAPE[part];
   const c = partColor[part];
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {shape === 'rond' ? <Circle cx={12} cy={12} r={8.6} fill={c} />
-        : shape === 'carre' ? <Rect x={4} y={4} width={16} height={16} rx={5} fill={c} />
-        : <Path d={PATHS[shape]} fill={c} />}
-    </Svg>
+    // décorative : le nom de la partie est écrit à côté
+    <View aria-hidden>
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        {shape === 'rond' ? <Circle cx={12} cy={12} r={8.6} fill={c} />
+          : shape === 'carre' ? <Rect x={4} y={4} width={16} height={16} rx={5} fill={c} />
+          : <Path d={PATHS[shape]} fill={c} />}
+      </Svg>
+    </View>
   );
 }

@@ -1,24 +1,17 @@
-// Petites animations d'interface partagées. Chaque bouton en tire sa propre réaction (s'enfoncer, faire avancer
-// sa flèche, tourner…) ; avec « Réduire les animations », l'état change sans mouvement.
-import { useState } from 'react';
-import { Animated, Platform, Pressable } from 'react-native';
-import { useReduceMotion } from '../a11y';
-
-/** le pilote natif n'existe pas sur le web */
-export const ND = Platform.OS !== 'web';
+// Petites animations d'interface partagées, sur Reanimated : elles tournent sur le fil de l'interface, sans attendre
+// le JavaScript. Chaque bouton tire sa propre réaction de `usePress` (s'enfoncer, faire avancer sa flèche…) ;
+// avec « Réduire les animations », Reanimated pose directement la valeur finale.
+import { Pressable } from 'react-native';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 
 export const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+// enfoncement sans rebond, retour avec un léger rebond
+const IN = { damping: 40, stiffness: 600 };
+const OUT = { damping: 14, stiffness: 320 };
+
 /** 0 → 1 pendant l'appui, retour en ressort au relâchement */
 export function usePress() {
-  const reduce = useReduceMotion();
-  const [p] = useState(() => new Animated.Value(0));
-  const to = (v: number) => () => {
-    if (reduce) { p.setValue(v); return; }
-    Animated.spring(p, { toValue: v, useNativeDriver: ND, speed: 40, bounciness: v ? 0 : 10 }).start();
-  };
-  return { p, onPressIn: to(1), onPressOut: to(0) };
+  const p = useSharedValue(0);
+  return { p, onPressIn: () => p.set(withSpring(1, IN)), onPressOut: () => p.set(withSpring(0, OUT)) };
 }
-
-/** valeur interpolée de `from` (repos) à `to` (appuyé) */
-export const lerp = (p: Animated.Value, from: number, to: number) => p.interpolate({ inputRange: [0, 1], outputRange: [from, to] });

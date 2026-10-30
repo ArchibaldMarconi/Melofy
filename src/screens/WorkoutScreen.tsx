@@ -4,7 +4,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Reanimated, { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { PlanItem, WorkoutPart } from '../content/types';
@@ -21,8 +23,7 @@ import { useCountUp, usePop } from '../components/Celebration';
 import { Flame } from '../components/Flame';
 import { StepSlider } from '../components/StepSlider';
 import { PartShape } from '../components/PartShape';
-import { AnimatedPressable, lerp, ND, usePress } from '../components/motion';
-import { useReduceMotion } from '../a11y';
+import { AnimatedPressable, usePress } from '../components/motion';
 import { BADGES } from '../content/badges';
 import { colors, curve, domainColor, mixHex, partColor, radius, type } from '../theme';
 import type { RootStackParamList } from './navigation';
@@ -46,10 +47,9 @@ export function WorkoutScreen() {
   const [items, setItems] = useState<PlanItem[]>([]);
   // programme : ce qui est demandé (libellé, flèche), ce qui est à l'écran (la carte reste le temps de se replier),
   // et l'avancée du dépliage (0 → 1)
-  const reduce = useReduceMotion();
   const [planOpen, setPlanOpen] = useState(false);
   const [planShown, setPlanShown] = useState(false);
-  const [planT] = useState(() => new Animated.Value(0));
+  const planT = useSharedValue(0);
   const [summary, setSummary] = useState<Summary | null>(null);
   // pendant qu'on fait glisser la durée, la page ne défile pas
   const [sliding, setSliding] = useState(false);
@@ -57,7 +57,8 @@ export function WorkoutScreen() {
   // leçon). On mesure la hauteur visible et la place de la carte dans son bloc, puis on fait glisser le contenu.
   const [viewH, setViewH] = useState(0);
   const [heroBox, setHeroBox] = useState({ y: 0, h: 0 });
-  const [offset] = useState(() => new Animated.Value(0));
+  const offset = useSharedValue(0);
+  const flowStyle = useAnimatedStyle(() => ({ transform: [{ translateY: offset.get() }] }));
   const placed = useRef(false);
   // carte de leçon posée en bas (avec son fondu) : sa hauteur, pour laisser la place au contenu et centrer la carte
   const [dockH, setDockH] = useState(0);
@@ -98,9 +99,9 @@ export function WorkoutScreen() {
   useEffect(() => {
     if (planOpen || !measured) return;
     // au premier affichage, directement au centre ; ensuite (programme replié, carte qui change de taille) en glissant
-    if (!placed.current || reduce) { placed.current = true; offset.setValue(centered); return; }
-    Animated.timing(offset, { toValue: centered, duration: 320, easing: Easing.inOut(Easing.cubic), useNativeDriver: ND }).start();
-  }, [centered, measured, planOpen, reduce, offset]);
+    if (!placed.current) { placed.current = true; offset.set(centered); return; }
+    offset.set(withTiming(centered, { duration: 320, easing: Easing.inOut(Easing.cubic) }));
+  }, [centered, measured, planOpen, offset]);
 
   const start = (o: { hasInstrument: boolean; canSing: boolean }) => {
     st.setSettings(o);
@@ -135,11 +136,12 @@ export function WorkoutScreen() {
     const open = !planOpen;
     setPlanOpen(open);
     if (open) setPlanShown(true);
-    if (reduce) { planT.setValue(open ? 1 : 0); if (open) offset.setValue(0); else setPlanShown(false); return; }
     // à l'ouverture la carte remonte en haut pendant que le programme se déplie ; au repli elle redescend (effet plus haut)
-    if (open) Animated.timing(offset, { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: ND }).start();
-    Animated.timing(planT, { toValue: open ? 1 : 0, duration: open ? 700 : 260, easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad), useNativeDriver: ND })
-      .start(({ finished }) => { if (finished && !open) setPlanShown(false); });
+    if (open) offset.set(withTiming(0, { duration: 450, easing: Easing.out(Easing.cubic) }));
+    planT.set(withTiming(open ? 1 : 0, { duration: open ? 700 : 260, easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad) }, (finished) => {
+      'worklet';
+      if (finished && !open) scheduleOnRN(setPlanShown, false);
+    }));
   };
 
   return (
@@ -156,7 +158,7 @@ export function WorkoutScreen() {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + dockSpace }]} scrollEnabled={!sliding} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
           {/* tout le contenu glisse d'un bloc (translation : animée sur le fil natif, sans recalculer la mise en page) ;
               invisible le temps de la première mesure, pour ne pas voir la carte sauter du haut vers le centre */}
-          <Animated.View style={[styles.flow, { opacity: measured ? 1 : 0, transform: [{ translateY: offset }] }]}>
+          <Reanimated.View style={[styles.flow, { opacity: measured ? 1 : 0 }, flowStyle]}>
             <View style={styles.block}>
               {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
 
@@ -191,7 +193,7 @@ export function WorkoutScreen() {
             </View>
             {planShown && plan.items.length ? <PlanDetail items={plan.items} instrument={st.settings.instrument} t={planT} /> : null}
             {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
-          </Animated.View>
+          </Reanimated.View>
         </ScrollView>
 
         {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets ; au-dessus et autour d'elle, le contenu
@@ -221,11 +223,13 @@ export function WorkoutScreen() {
 /** bouton « lecture » : sous le doigt il s'enfonce et son ▶ avance, prêt à partir */
 function PlayButton({ label, onPress, disabled, big, accessibilityLabel }: { label: string; onPress: () => void; disabled?: boolean; big?: boolean; accessibilityLabel: string }) {
   const { p, onPressIn, onPressOut } = usePress();
+  const sink = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.04 * p.get() }] }));
+  const push = useAnimatedStyle(() => ({ transform: [{ translateX: 6 * p.get() }] }));
   const text = [styles.heroBtnText, big && styles.heroBtnTextBig];
   return (
     <AnimatedPressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} disabled={disabled} accessibilityRole="button" accessibilityLabel={accessibilityLabel}
-      style={[styles.heroBtn, big && styles.heroBtnBig, disabled && { opacity: 0.5 }, { transform: [{ scale: lerp(p, 1, 0.96) }] }]}>
-      <Animated.Text style={[...text, { transform: [{ translateX: lerp(p, 0, 6) }] }]}>▶</Animated.Text>
+      style={[styles.heroBtn, big && styles.heroBtnBig, disabled && { opacity: 0.5 }, sink]}>
+      <Reanimated.Text style={[...text, push]}>▶</Reanimated.Text>
       <Text style={[...text, { flexShrink: 1 }]}>{label}</Text>
     </AnimatedPressable>
   );
@@ -237,9 +241,11 @@ function Disclosure({ open, onPress }: { open: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} style={styles.disclosure}>
       <Text style={styles.disclosureText}>{label}</Text>
-      <Svg width={15} height={15} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>
+      <View aria-hidden>
+        <Svg width={15} height={15} viewBox="0 0 24 24">
+          <Path d={open ? 'M5 15.5 L12 8.5 L19 15.5' : 'M5 8.5 L12 15.5 L19 8.5'} stroke={colors.inkSoft} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </Svg>
+      </View>
     </Pressable>
   );
 }
@@ -247,15 +253,48 @@ function Disclosure({ open, onPress }: { open: boolean; onPress: () => void }) {
 /** la prochaine leçon, posée sur la barre d'onglets : sous le doigt la carte se tasse et sa flèche file vers la droite */
 function NextLessonCard({ title, onPress }: { title: string; onPress: () => void }) {
   const { p, onPressIn, onPressOut } = usePress();
+  const settle = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.02 * p.get() }] }));
+  const push = useAnimatedStyle(() => ({ transform: [{ translateX: 6 * p.get() }] }));
   return (
     <AnimatedPressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityRole="button" accessibilityLabel={`Nouvelle leçon : ${title}`}
-      style={[styles.newLesson, { transform: [{ scale: lerp(p, 1, 0.98) }] }]}>
+      style={[styles.newLesson, settle]}>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.kicker}>Nouvelle leçon</Text>
         <Text style={styles.newLessonTitle} numberOfLines={1}>{title}</Text>
       </View>
-      <Animated.Text style={[styles.newLessonGo, { transform: [{ translateX: lerp(p, 0, 6) }] }]}>›</Animated.Text>
+      <Reanimated.Text style={[styles.newLessonGo, push]}>›</Reanimated.Text>
     </AnimatedPressable>
+  );
+}
+
+type PlanRowData = { key: string; part: WorkoutPart; head: boolean; label: string; last: boolean };
+
+/** une rangée du programme : sa fenêtre dans t la fait apparaître après les précédentes (la forme éclot, l'exercice glisse) */
+function PlanRow({ row: r, i, n, t }: { row: PlanRowData; i: number; n: number; t: SharedValue<number> }) {
+  const s = (i / n) * 0.6;
+  const rowStyle = useAnimatedStyle(() => {
+    const k = interpolate(t.get(), [s, s + 0.4], [0, 1], Extrapolation.CLAMP);
+    return r.head ? { opacity: k } : { opacity: k, transform: [{ translateY: -6 * (1 - k) }] };
+  });
+  const shapeStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(t.get(), [s, s + 0.4], [0.3, 1], Extrapolation.CLAMP) }] }));
+  // la ligne : la nuance de la partie, adoucie vers le fond de la carte
+  const line = mixHex(partColor[r.part], colors.card, 0.45);
+  return r.head ? (
+    <Reanimated.View style={[styles.planRow, i > 0 && { marginTop: 14 }, rowStyle]}>
+      <View style={styles.gutter}>
+        <View style={[styles.stem, { top: '50%', backgroundColor: line }]} />
+        <Reanimated.View style={[styles.shape, shapeStyle]}><PartShape part={r.part} size={18} /></Reanimated.View>
+      </View>
+      <Text style={styles.planPart}>{PART_LABEL[r.part]}</Text>
+    </Reanimated.View>
+  ) : (
+    <Reanimated.View style={[styles.planRow, rowStyle]}>
+      <View style={styles.gutter}>
+        {r.last ? null : <View style={[styles.stem, { top: 0, backgroundColor: line }]} />}
+        <View style={[styles.branch, { borderColor: line }]} />
+      </View>
+      <Text style={[type.small, styles.planItem]}>{r.label}</Text>
+    </Reanimated.View>
   );
 }
 
@@ -270,50 +309,25 @@ const BRANCH_H = 15;
  * s'écoulent le long de la ligne ; au repli, le même chemin à l'envers.
  */
 // mémorisé : l'écran se redessine souvent (réglages, dépliage), le programme seulement quand ses exercices changent
-const PlanDetail = React.memo(function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: 'piano' | 'guitare'; t: Animated.Value }) {
+const PlanDetail = React.memo(function PlanDetail({ items, instrument, t }: { items: PlanItem[]; instrument: 'piano' | 'guitare'; t: SharedValue<number> }) {
   const of = (p: WorkoutPart) => items.filter((x) => (x.wpart ?? 'revision') === p);
   const parts = PART_ORDER.filter((p) => of(p).length);
   const titleOf = (x: PlanItem) => {
     const tp = templateById(x.templateId);
     return x.tech ? x.tech.label : x.confirmLesson ? `Validation · ${deepLessonById(x.confirmLesson)?.title}` : displayTitle(tp, x.params, instrument);
   };
-  const rows = parts.flatMap((p) => [
+  const rows: PlanRowData[] = parts.flatMap((p) => [
     { key: p, part: p, head: true, label: '', last: false },
     ...of(p).map((x, j, all) => ({ key: `${p}-${j}`, part: p, head: false, label: titleOf(x), last: j === all.length - 1 })),
   ]);
-  // chaque rangée a sa fenêtre dans t : elles apparaissent l'une après l'autre
-  const win = (i: number, from: number, to: number) => {
-    const s = (i / rows.length) * 0.6;
-    return t.interpolate({ inputRange: [s, s + 0.4], outputRange: [from, to], extrapolate: 'clamp' });
-  };
-  const card = {
-    opacity: t.interpolate({ inputRange: [0, 0.15], outputRange: [0, 1], extrapolate: 'clamp' }),
-    transform: [{ translateY: t.interpolate({ inputRange: [0, 0.3], outputRange: [-10, 0], extrapolate: 'clamp' }) }],
-  };
+  const card = useAnimatedStyle(() => ({
+    opacity: interpolate(t.get(), [0, 0.15], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateY: interpolate(t.get(), [0, 0.3], [-10, 0], Extrapolation.CLAMP) }],
+  }));
   return (
-    <Animated.View style={[styles.card, styles.plan, card]}>
-      {rows.map((r, i) => {
-        // la ligne : la nuance de la partie, adoucie vers le fond de la carte
-        const line = mixHex(partColor[r.part], colors.card, 0.45);
-        return r.head ? (
-          <Animated.View key={r.key} style={[styles.planRow, i > 0 && { marginTop: 14 }, { opacity: win(i, 0, 1) }]}>
-            <View style={styles.gutter}>
-              <View style={[styles.stem, { top: '50%', backgroundColor: line }]} />
-              <Animated.View style={[styles.shape, { transform: [{ scale: win(i, 0.3, 1) }] }]}><PartShape part={r.part} size={18} /></Animated.View>
-            </View>
-            <Text style={styles.planPart}>{PART_LABEL[r.part]}</Text>
-          </Animated.View>
-        ) : (
-          <Animated.View key={r.key} style={[styles.planRow, { opacity: win(i, 0, 1), transform: [{ translateY: win(i, -6, 0) }] }]}>
-            <View style={styles.gutter}>
-              {r.last ? null : <View style={[styles.stem, { top: 0, backgroundColor: line }]} />}
-              <View style={[styles.branch, { borderColor: line }]} />
-            </View>
-            <Text style={[type.small, styles.planItem]}>{r.label}</Text>
-          </Animated.View>
-        );
-      })}
-    </Animated.View>
+    <Reanimated.View style={[styles.card, styles.plan, card]}>
+      {rows.map((r, i) => <PlanRow key={r.key} row={r} i={i} n={rows.length} t={t} />)}
+    </Reanimated.View>
   );
 });
 

@@ -1,17 +1,21 @@
 // Curseur à crans façon iOS : une barre en capsule, et une pilule qui glisse à l'intérieur d'un cran à l'autre ;
 // la barre se remplit jusqu'à la pilule, pour que la quantité choisie se lise d'un coup d'œil.
-// Sans module natif (il marche aussi dans Expo Go et sur le web) : on fait glisser la pilule, ou on touche un cran.
+// Le geste (Gesture Handler) et les animations (Reanimated) tournent sur le fil de l'interface : la pilule suit le
+// doigt sans passer par le JavaScript, qui n'apprend que le cran affiché et, au lâcher, la valeur choisie.
 // VoiceOver et TalkBack l'ajustent d'un cran par balayage vers le haut ou le bas.
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
-import { useReduceMotion } from '../a11y';
+import { StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { colors, radius } from '../theme';
-import { ND } from './motion';
 
 // la barre est une capsule concentrique aux coins d'une carte (rayon = celui des commandes posées dedans) ;
 // la pilule l'est à son tour dans la barre
 const BAR = 2 * radius.control;
 const PAD = 3;
+const SNAP = { damping: 20, stiffness: 320 };
+const GROW = { damping: 16, stiffness: 420 };
 
 export function StepSlider({ label, value, min, max, step, format, onChange, onSliding, ink = colors.ink, soft = colors.inkSoft, pill = colors.card, fill = colors.accent }: {
   /** titre affiché au-dessus et lu par le lecteur d'écran */
@@ -26,121 +30,116 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   ink?: string; soft?: string; pill?: string; fill?: string;
 }) {
   const [width, setWidth] = useState(0);
-  const reduce = useReduceMotion();
-  const [x] = useState(() => new Animated.Value(0));
-  // la durée affichée grossit tant qu'on tient la pilule, et reprend sa taille quand on la lâche
-  const [pop] = useState(() => new Animated.Value(1));
-  // pendant le geste, la valeur reste locale (affichage, pilule) ; elle n'est transmise qu'au lâcher : l'écran parent
-  // ne se recalcule pas à chaque cran, le geste reste fluide
-  const [live, setLive] = useState<number | null>(null);
-  const shown = live ?? value;
-  const grab = useRef({ x: 0, pageX: 0, from: value, last: value, sliding: false });
   const count = Math.round((max - min) / step);
   // une case par cran ; la pilule occupe une case et se déplace de case en case
   const seg = width > 0 ? (width - 2 * PAD) / (count + 1) : 0;
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
-  const indexOf = (v: number) => Math.round((v - min) / step);
+  const k0 = Math.round((value - min) / step);
+  // pendant le geste, le cran reste local (affichage, points) ; la valeur n'est transmise qu'au lâcher : l'écran
+  // parent ne se recalcule pas à chaque cran
+  const [live, setLive] = useState<number | null>(null);
+  const shownK = live ?? k0;
+  const shown = min + shownK * step;
 
-  // la pilule rejoint sa case en ressort (sans mouvement si les animations sont réduites)
-  const slideTo = (k: number) => (reduce ? x.setValue(k * seg) : Animated.spring(x, { toValue: k * seg, useNativeDriver: ND, speed: 24, bounciness: 4 }).start());
-  // posée sans mouvement au premier affichage ; ensuite elle glisse (après un toucher, ou si la durée change ailleurs)
+  const x = useSharedValue(0); // décalage de la pilule
+  const pop = useSharedValue(1); // taille de la durée affichée : grossie tant qu'on tient la pilule
+  const cur = useSharedValue(k0); // cran sous le doigt
+  const held = useSharedValue(false); // geste actif (défilement de la page bloqué)
+
+  // posée sans mouvement au premier affichage ; ensuite elle glisse (au lâcher, ou si la durée change ailleurs)
   const placed = useRef(false);
   useEffect(() => {
-    if (!seg || grab.current.sliding) return;
-    if (!placed.current) { placed.current = true; x.setValue(indexOf(value) * seg); return; }
-    slideTo(indexOf(value));
-  }, [value, seg]); // eslint-disable-line react-hooks/exhaustive-deps
+    cur.set(k0);
+    if (!seg) return;
+    if (!placed.current) { placed.current = true; x.set(k0 * seg); return; }
+    x.set(withSpring(k0 * seg, SNAP));
+  }, [k0, seg, x, cur]);
 
-  const grow = (on: boolean) => {
-    if (reduce) return;
-    Animated.spring(pop, { toValue: on ? 1.18 : 1, useNativeDriver: ND, speed: 40, bounciness: on ? 6 : 10 }).start();
-  };
-  const set = (v: number) => { if (v !== grab.current.last) { grab.current.last = v; setLive(v); } };
-  // position du doigt → pilule centrée sous le doigt, sans sortir de la barre
-  const follow = (fx: number) => {
-    const tx = Math.max(0, Math.min(count * seg, fx - PAD - seg / 2));
-    x.setValue(tx);
-    set(clamp(min + Math.round(tx / (seg || 1)) * step));
-  };
-  const begin = (e: GestureResponderEvent) => {
-    const fx = e.nativeEvent.locationX;
-    grab.current = { x: fx, pageX: e.nativeEvent.pageX, from: value, last: value, sliding: false };
-    grow(true);
-    // un toucher : la pilule saute sur la case touchée
-    const k = Math.max(0, Math.min(count, Math.floor((fx - PAD) / (seg || 1))));
-    set(min + k * step);
-    slideTo(k);
-  };
-  const move = (e: GestureResponderEvent) => {
-    const dx = e.nativeEvent.pageX - grab.current.pageX;
-    if (!grab.current.sliding && Math.abs(dx) < 4) return;
-    if (!grab.current.sliding) { grab.current.sliding = true; onSliding?.(true); }
-    follow(grab.current.x + dx);
-  };
-  // doigt levé (ou geste repris par le système) : la durée reprend sa taille, la valeur est transmise
-  const end = () => {
-    grow(false);
-    const { from, last, sliding } = grab.current;
-    if (last !== from) onChange(last);
+  // fin du geste, côté JavaScript : la page défile de nouveau, la valeur est transmise si elle a changé
+  const commit = (k: number, wasHeld: boolean) => {
     setLive(null);
-    if (!sliding) return;
-    grab.current.sliding = false;
-    onSliding?.(false);
-    // la pilule se pose sur le cran le plus proche
-    slideTo(indexOf(last));
+    if (wasHeld) onSliding?.(false);
+    const v = Math.max(min, Math.min(max, min + k * step));
+    if (v !== value) onChange(v);
   };
+  const hold = () => onSliding?.(true);
+
+  const pan = usePanGesture({
+    minDistance: 0,
+    onBegin: (e) => {
+      // un toucher : la durée grossit, la pilule saute sur la case touchée
+      const k = Math.max(0, Math.min(count, Math.floor((e.x - PAD) / (seg || 1))));
+      cur.set(k);
+      pop.set(withSpring(1.18, GROW));
+      x.set(withSpring(k * seg, SNAP));
+      scheduleOnRN(setLive, k);
+    },
+    onActivate: () => {
+      held.set(true);
+      scheduleOnRN(hold);
+    },
+    onUpdate: (e) => {
+      if (Math.abs(e.translationX) < 4) return;
+      // la pilule suit le doigt, centrée dessous, sans sortir de la barre
+      const tx = Math.max(0, Math.min(count * seg, e.x - PAD - seg / 2));
+      x.set(tx);
+      const k = Math.round(tx / (seg || 1));
+      if (k !== cur.get()) { cur.set(k); scheduleOnRN(setLive, k); }
+    },
+    onFinalize: () => {
+      // doigt levé (ou geste repris par le système) : la durée reprend sa taille, la pilule se pose sur son cran
+      pop.set(withSpring(1, GROW));
+      x.set(withSpring(cur.get() * seg, SNAP));
+      scheduleOnRN(commit, cur.get(), held.get());
+      held.set(false);
+    },
+  });
+
+  const pillStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
+  // partie remplie : une capsule aussi large que la barre, décalée pour que son bout arrondi entoure la pilule
+  const fillStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() + seg + 2 * PAD - width }] }));
+  const valueStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() }] }));
 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={[styles.label, { color: soft }]}>{label}</Text>
-        <Animated.Text style={[styles.value, { color: ink, transform: [{ scale: pop }] }]}>{format(shown)}</Animated.Text>
+        <Animated.Text style={[styles.value, { color: ink }, valueStyle]}>{format(shown)}</Animated.Text>
       </View>
-      <View
-        style={styles.touch}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderTerminationRequest={() => false}
-        onResponderGrant={begin}
-        onResponderMove={move}
-        onResponderRelease={end}
-        onResponderTerminate={end}
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel={label}
-        accessibilityValue={{ min, max, now: shown, text: format(shown) }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={(e) => {
-          const v = clamp(value + (e.nativeEvent.actionName === 'increment' ? step : e.nativeEvent.actionName === 'decrement' ? -step : 0));
-          if (v !== value) onChange(v);
-        }}
-      >
-        {/* rien ne capte le toucher à l'intérieur : locationX reste mesuré depuis le bord de la barre */}
-        <View style={styles.inner}>
-          <View style={styles.clip}>
-            <View style={[styles.bar, { backgroundColor: ink }]} />
-            {/* partie remplie : une capsule aussi large que la barre, décalée pour que son bout arrondi entoure la pilule ;
-                la barre la coupe à gauche. Elle suit la pilule par translation (le pilote natif ne sait pas animer width). */}
+      <GestureDetector gesture={pan}>
+        <View
+          style={styles.touch}
+          onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={label}
+          accessibilityValue={{ min, max, now: shown, text: format(shown) }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={(e) => {
+            const v = Math.max(min, Math.min(max, value + (e.nativeEvent.actionName === 'increment' ? step : e.nativeEvent.actionName === 'decrement' ? -step : 0)));
+            if (v !== value) onChange(v);
+          }}
+        >
+          <View style={styles.inner}>
+            <View style={styles.clip}>
+              <View style={[styles.bar, { backgroundColor: ink }]} />
+              {/* la barre coupe le remplissage à gauche ; il suit la pilule par translation */}
+              {seg ? <Animated.View style={[styles.fill, { width, backgroundColor: fill }, fillStyle]} /> : null}
+            </View>
+            {/* ombre intérieure, sans décalage (lumière venue d'en face), sur la barre et son remplissage : la barre paraît
+                creusée dans la carte. La pilule, posée au fond, est dessinée par-dessus : elle ne la reçoit pas. */}
+            <View style={styles.inset} />
             {seg ? (
-              <Animated.View style={[styles.fill, { width, backgroundColor: fill,
-                transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [seg + 2 * PAD - width, seg + 2 * PAD - width + 1] }) }] }]} />
+              <>
+                {/* un point par cran encore libre, à droite de la pilule */}
+                {Array.from({ length: count + 1 }, (_, k) => k).filter((k) => k > shownK).map((k) => (
+                  <View key={k} style={[styles.dot, { left: PAD + (k + 0.5) * seg - 2, backgroundColor: ink }]} />
+                ))}
+                <Animated.View style={[styles.pill, { width: seg, backgroundColor: pill }, pillStyle]} />
+              </>
             ) : null}
           </View>
-          {/* ombre intérieure, sans décalage (lumière venue d'en face), sur la barre et son remplissage : la barre paraît
-              creusée dans la carte. La pilule, posée au fond, est dessinée par-dessus : elle ne la reçoit pas. */}
-          <View style={styles.inset} />
-          {seg ? (
-            <>
-              {/* un point par cran encore libre, à droite de la pilule */}
-              {Array.from({ length: count + 1 }, (_, k) => k).filter((k) => k > indexOf(shown)).map((k) => (
-                <View key={k} style={[styles.dot, { left: PAD + (k + 0.5) * seg - 2, backgroundColor: ink }]} />
-              ))}
-              <Animated.View style={[styles.pill, { width: seg, backgroundColor: pill, transform: [{ translateX: x }] }]} />
-            </>
-          ) : null}
         </View>
-      </View>
+      </GestureDetector>
     </View>
   );
 }
@@ -152,7 +151,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 16, fontWeight: '900' },
   // zone de toucher de 44 pt, la barre au milieu
   touch: { paddingVertical: (44 - BAR) / 2 },
-  // pas de sélection de texte quand on glisse sur le web
+  // rien ne capte le toucher à l'intérieur ; pas de sélection de texte quand on glisse sur le web
   inner: { height: BAR, pointerEvents: 'none', userSelect: 'none' },
   clip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: BAR / 2, overflow: 'hidden' },
   bar: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18 },

@@ -5,6 +5,7 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { TreeScreen } from './src/screens/TreeScreen';
 import { WorkoutScreen } from './src/screens/WorkoutScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -70,10 +71,10 @@ export default function App() {
   const droneVolume = useUserStore((s) => s.settings.droneVolume ?? 0.6);
   useEffect(() => { audio.droneVolume = droneVolume; }, [droneVolume]);
   const placementPending = useUserStore((s) => s.placementPending);
-  if (!onboarded) return <SafeAreaProvider><OnboardingScreen /></SafeAreaProvider>;
-  if (placementPending) return <SafeAreaProvider><PlacementScreen /></SafeAreaProvider>;
+  if (!onboarded) return <Root><OnboardingScreen /></Root>;
+  if (placementPending) return <Root><PlacementScreen /></Root>;
   return (
-    <SafeAreaProvider>
+    <Root>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <WhatsNewGate />
       <NavigationContainer theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.paper } }}>
@@ -84,6 +85,15 @@ export default function App() {
           <Stack.Screen name="Focus" component={FocusScreen} options={{ presentation: 'modal', headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
-    </SafeAreaProvider>
+    </Root>
+  );
+}
+
+/** racine de l'appli : les gestes (Gesture Handler) ne sont reconnus qu'à l'intérieur de GestureHandlerRootView */
+function Root({ children }: { children: React.ReactNode }) {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>{children}</SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
