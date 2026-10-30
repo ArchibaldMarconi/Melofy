@@ -1,6 +1,6 @@
-// Séance : un bouton. La séance du jour se compose seule à partir des leçons vues ; aucun réglage avant de jouer
-// (durée, module technique, instrument sous la main et voix se règlent une fois, dans Moi). Le détail du programme
-// reste consultable, replié.
+// Séance : un bouton, et la durée juste dessous (de 10 à 30 min). La séance du jour se compose seule à partir des
+// leçons vues ; le reste (module technique, instrument sous la main, voix) se règle une fois, dans Moi. Le détail du
+// programme reste consultable, replié sous la carte.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +17,8 @@ import { dayKey, lessonProgressOf, useUserStore } from '../store/useUserStore';
 import { SessionRunner, type SessionResult } from '../session/SessionRunner';
 import { Button } from '../components/Button';
 import { useCountUp, usePop } from '../components/Celebration';
+import { Flame } from '../components/Flame';
+import { StepSlider } from '../components/StepSlider';
 import { BADGES } from '../content/badges';
 import { colors, domainColor, type } from '../theme';
 import type { RootStackParamList } from './navigation';
@@ -34,6 +36,8 @@ export function WorkoutScreen() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [showPlan, setShowPlan] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
+  // pendant qu'on fait glisser la durée, la page ne défile pas
+  const [sliding, setSliding] = useState(false);
   const before = useRef<Set<string>>(new Set());
   // heure de référence du programme affiché : relevée à l'arrivée sur l'onglet et au retour au programme
   const [planNow, setPlanNow] = useState(() => Date.now());
@@ -90,15 +94,21 @@ export function WorkoutScreen() {
   if (mode === 'running') return <SessionRunner items={items} onEnd={onEnd} />;
   if (mode === 'done' && summary) return <SessionSummary s={summary} onClose={backToPlan} />;
 
-  const minutes = Math.max(1, Math.round(plan.estimatedS / 60));
-  const where = hasInstrument ? (st.settings.instrument === 'guitare' ? 'avec ta guitare' : 'avec ton piano') : 'à l\'écran';
+  const where = hasInstrument ? (st.settings.instrument === 'guitare' ? 'Avec ta guitare' : 'Avec ton piano') : 'À l\'écran';
   const doneToday = st.lastSessionDay === dayKey();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={type.display}>Séance du jour</Text>
-        <Text style={type.small}>{doneToday ? 'Séance faite aujourd\'hui ✓' : st.streak ? `🔥 ${st.streak} jour${st.streak > 1 ? 's' : ''} d'affilée` : 'Une séance par jour, et tout s\'enchaîne.'}</Text>
+      {/* barre de titre : la série du jour à droite, toujours visible */}
+      <View style={styles.titleBar}>
+        <Text style={[type.display, { flex: 1 }]} accessibilityRole="header">Séance du jour</Text>
+        <View style={styles.streak} accessible accessibilityLabel={st.streak ? `Série : ${st.streak} jour${st.streak > 1 ? 's' : ''} d'affilée` : 'Série : aucun jour pour l\'instant'}>
+          <Text style={styles.streakCount}>{st.streak}</Text>
+          <Flame size={24} lit={st.streak > 0} />
+        </View>
+      </View>
+      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!sliding}>
+        {doneToday ? <Text style={type.small}>{'Séance faite aujourd\'hui ✓'}</Text> : !st.streak ? <Text style={type.small}>{'Une séance par jour, et tout s\'enchaîne.'}</Text> : null}
 
         {plan.needsLesson ? (
           <View style={styles.hero}>
@@ -118,8 +128,11 @@ export function WorkoutScreen() {
               style={({ pressed }) => [styles.heroBtn, styles.heroBtnBig, pressed && { opacity: 0.85 }, plan.items.length === 0 && { opacity: 0.5 }]}>
               <Text style={[styles.heroBtnText, { fontSize: 24 }]}>▶  Commencer</Text>
             </Pressable>
+            <StepSlider label="Durée de la séance" value={st.settings.sessionMinutes} min={10} max={30} step={5} format={(m) => `${m} min`}
+              onChange={(m) => st.setSettings({ sessionMinutes: m })} onSliding={setSliding}
+              ink={colors.onPrimary} soft={colors.onPrimarySoft} />
             <Pressable onPress={() => (navigation as unknown as { navigate: (r: string) => void }).navigate('Profil')} accessibilityRole="button" accessibilityLabel="Changer les réglages de la séance dans Moi">
-              <Text style={styles.heroLine}>Environ {minutes} min · {where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
+              <Text style={styles.heroLine}>{where}{techMin ? ` · technique +${techMin} min` : ''} · <Text style={{ textDecorationLine: 'underline' }}>modifier</Text></Text>
             </Pressable>
           </View>
         ) : (
@@ -129,21 +142,26 @@ export function WorkoutScreen() {
           </View>
         )}
 
-        {!plan.needsLesson && discover ? (
-          <Pressable onPress={() => navigation.navigate('DeepLesson', { id: discover.id })} accessibilityRole="button" accessibilityLabel={`Nouvelle leçon : ${discover.title}`} style={styles.newLesson}>
-            <Text style={styles.kicker}>Nouvelle leçon</Text>
-            <Text style={type.title}>{discover.title}</Text>
-          </Pressable>
-        ) : null}
-
         {plan.items.length ? (
           <Pressable onPress={() => setShowPlan((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: showPlan }} style={styles.disclosure}>
-            <Text style={styles.disclosureText}>{showPlan ? 'Masquer le programme ▴' : `Voir le programme · ${plan.items.length} exercices ▾`}</Text>
+            <Text style={styles.disclosureText}>{showPlan ? 'Masquer le programme ▴' : 'Voir le programme ▾'}</Text>
           </Pressable>
         ) : null}
         {showPlan ? <PlanDetail items={plan.items} instrument={st.settings.instrument} /> : null}
         {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
       </ScrollView>
+
+      {/* la prochaine leçon reste à portée de pouce, posée sur la barre d'onglets */}
+      {!plan.needsLesson && discover ? (
+        <Pressable onPress={() => navigation.navigate('DeepLesson', { id: discover.id })} accessibilityRole="button" accessibilityLabel={`Nouvelle leçon : ${discover.title}`}
+          style={({ pressed }) => [styles.newLesson, pressed && { opacity: 0.85 }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.kicker}>Nouvelle leçon</Text>
+            <Text style={styles.newLessonTitle} numberOfLines={1}>{discover.title}</Text>
+          </View>
+          <Text style={styles.newLessonGo}>›</Text>
+        </Pressable>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -256,7 +274,10 @@ function SessionSummary({ s, onClose }: { s: Summary; onClose: () => void }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  content: { padding: 20, gap: 14, paddingBottom: 40 },
+  titleBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  streak: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 12, minHeight: 40 },
+  streakCount: { fontSize: 20, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] },
+  content: { padding: 20, paddingTop: 8, gap: 14, paddingBottom: 24 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   hero: { backgroundColor: colors.primary, borderRadius: 24, padding: 18, gap: 12 },
   heroBtn: { backgroundColor: colors.card, borderRadius: 18, minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
@@ -265,7 +286,9 @@ const styles = StyleSheet.create({
   heroLine: { color: colors.onPrimarySoft, fontSize: 13, textAlign: 'center' },
   theme: { color: colors.onPrimary, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   card: { backgroundColor: colors.card, borderRadius: 18, padding: 16, gap: 12 },
-  newLesson: { backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 4, borderWidth: 2, borderColor: '#E0457B' },
+  newLesson: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 20, marginBottom: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: `${colors.accent}99` },
+  newLessonTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
+  newLessonGo: { fontSize: 26, fontWeight: '700', color: colors.accent },
   kicker: { color: colors.accent, fontWeight: '900', fontSize: 13 },
   disclosure: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },
   disclosureText: { fontSize: 14, fontWeight: '800', color: colors.inkSoft },
