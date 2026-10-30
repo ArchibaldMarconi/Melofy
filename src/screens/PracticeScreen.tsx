@@ -22,7 +22,7 @@ export function PracticeScreen({ route, navigation }: Props) {
   const [bossResult, setBossResult] = useState<boolean | null>(null);
   const successes = useRef<boolean[]>([]);
   const BOSS = BOSSES.find((b) => 'boss' in p && b.id === p.boss) ?? BOSSES[0];
-  const seeds = useRef(BOSS.steps.map(() => newSeed()));
+  const [seeds] = useState(() => BOSS.steps.map(() => newSeed()));
 
   if ('boss' in p) {
     if (bossResult !== null) {
@@ -47,7 +47,7 @@ export function PracticeScreen({ route, navigation }: Props) {
       <SafeAreaView style={styles.screen}>
         <TopBar title={`${BOSS.title} · ${i + 1}/${BOSS.steps.length}`} onClose={() => navigation.goBack()} />
         <ExercisePlayer
-          key={i} template={templateById(s.templateId)} params={s.params} seed={seeds.current[i]} inSession={false}
+          key={i} template={templateById(s.templateId)} params={s.params} seed={seeds[i]} inSession={false}
           onFinished={(_, o) => { successes.current[i] = o.success; }}
           onNext={() => advance()}
           onSkip={() => { successes.current[i] = false; advance(); }}
@@ -78,23 +78,24 @@ function TimedSeries({ templateId, params: params0, minutes, tempoStep, onClose 
   const bpm = typeof params?.tempo_cle === 'number' ? params.tempo_cle : null;
   const [left, setLeft] = useState(minutes * 60);
   const [over, setOver] = useState(false);
-  const seeds = useRef<number[]>([newSeed()]);
-  const results = useRef<boolean[]>([]);
+  const [seeds, setSeeds] = useState<number[]>(() => [newSeed()]);
+  const [results, setResults] = useState<boolean[]>([]);
   useEffect(() => {
     const iv = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(iv);
   }, []);
   const next = () => {
     if (left <= 0) { setOver(true); return; }
-    seeds.current.push(newSeed());
+    const seed = newSeed();
+    setSeeds((s) => [...s, seed]);
     setK((x) => x + 1);
   };
   if (over) {
-    const ok = results.current.filter(Boolean).length;
+    const ok = results.filter(Boolean).length;
     return (
       <SafeAreaView style={styles.center}>
         <Text style={type.display}>Série terminée</Text>
-        <Text style={type.body}>{results.current.length} exercice{results.current.length > 1 ? 's' : ''} en {minutes} min · {ok} réussi{ok > 1 ? 's' : ''}</Text>
+        <Text style={type.body}>{results.length} exercice{results.length > 1 ? 's' : ''} en {minutes} min · {ok} réussi{ok > 1 ? 's' : ''}</Text>
         {bpm !== null && tempoStep ? <Text style={type.body}>Tempo atteint : {bpm} BPM</Text> : null}
         <Button label="Retour à la pratique" onPress={onClose} />
       </SafeAreaView>
@@ -102,11 +103,11 @@ function TimedSeries({ templateId, params: params0, minutes, tempoStep, onClose 
   }
   return (
     <SafeAreaView style={styles.screen}>
-      <TopBar title={`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} · ${k + 1}e exercice${bpm !== null ? ` · ${bpm} BPM` : ''}`} onClose={() => (results.current.length ? setOver(true) : onClose())} />
+      <TopBar title={`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} · ${k + 1}e exercice${bpm !== null ? ` · ${bpm} BPM` : ''}`} onClose={() => (results.length ? setOver(true) : onClose())} />
       <ExercisePlayer
-        key={k} template={templateById(templateId)} params={params} seed={seeds.current[k]} inSession={false}
+        key={k} template={templateById(templateId)} params={params} seed={seeds[k]} inSession={false}
         onFinished={(_, o) => {
-          results.current[k] = o.success;
+          setResults((r) => { const c = [...r]; c[k] = o.success; return c; });
           if (o.success && tempoStep && bpm !== null) setParams((x) => ({ ...x, tempo_cle: Math.min(240, bpm + tempoStep) }));
         }}
         onNext={next} onSkip={next}

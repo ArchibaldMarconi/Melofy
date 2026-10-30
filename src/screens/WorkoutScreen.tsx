@@ -35,6 +35,10 @@ export function WorkoutScreen() {
   const [showPlan, setShowPlan] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const before = useRef<Set<string>>(new Set());
+  // heure de référence du programme affiché : relevée à l'arrivée sur l'onglet et au retour au programme
+  const [planNow, setPlanNow] = useState(() => Date.now());
+  useEffect(() => navigation.addListener('focus', () => setPlanNow(Date.now())), [navigation]);
+  const backToPlan = () => { setPlanNow(Date.now()); setMode('plan'); };
 
   // pas d'onglets pendant la séance : un seul objectif à l'écran
   useEffect(() => {
@@ -45,23 +49,24 @@ export function WorkoutScreen() {
   const canSing = st.settings.canSing ?? true;
   const techMin = st.settings.techniqueMinutes ?? 0;
   const progress = lessonProgressOf(st);
-  const makePlan = (o: { hasInstrument: boolean; canSing: boolean }) => {
+  const makePlan = (o: { hasInstrument: boolean; canSing: boolean }, now: number) => {
     const s = useUserStore.getState();
     return buildWorkout({
       templates: TEMPLATES, competences: s.competences, progress: lessonProgressOf(s), minutes: s.settings.sessionMinutes,
       techniqueMinutes: s.settings.techniqueMinutes ?? 0, instrument: s.settings.instrument, hasInstrument: o.hasInstrument, canSing: o.canSing,
-      now: Date.now(), today: dayKey(), seed: hash(dayKey()), avgTimeS: s.avgTimeS, techProgress: s.techProgress,
+      now, today: dayKey(), seed: hash(dayKey()), avgTimeS: s.avgTimeS, techProgress: s.techProgress,
     });
   };
-  const plan = useMemo(() => makePlan({ hasInstrument, canSing }),
-    [st.settings.sessionMinutes, techMin, hasInstrument, canSing, st.settings.instrument, mode === 'plan', st.deepLessonsSeen?.length, st.deepLessonsDone?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isPlan = mode === 'plan';
+  const plan = useMemo(() => makePlan({ hasInstrument, canSing }, planNow),
+    [st.settings.sessionMinutes, techMin, hasInstrument, canSing, st.settings.instrument, isPlan, planNow, st.deepLessonsSeen?.length, st.deepLessonsDone?.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const discover = lessonsToDiscover(progress, st.settings.instrument)[0];
   const canStart = st.canStartWorkout();
 
   const start = (o: { hasInstrument: boolean; canSing: boolean }) => {
     st.setSettings(o);
     before.current = new Set(Object.values(st.competences).filter((c) => c.reps > 0 && (c.successes ?? 0) > 0).map((c) => c.key));
-    setItems(makePlan(o).items);
+    setItems(makePlan(o, Date.now()).items);
     setMode('running');
   };
   // la situation (instrument sous la main, voix) n'est demandée qu'une fois ; ensuite elle se change dans Moi
@@ -80,10 +85,10 @@ export function WorkoutScreen() {
   };
 
   if (mode === 'situation') {
-    return <SituationScreen instrument={st.settings.instrument} initial={{ hasInstrument, canSing }} onCancel={() => setMode('plan')} onGo={start} />;
+    return <SituationScreen instrument={st.settings.instrument} initial={{ hasInstrument, canSing }} onCancel={backToPlan} onGo={start} />;
   }
   if (mode === 'running') return <SessionRunner items={items} onEnd={onEnd} />;
-  if (mode === 'done' && summary) return <SessionSummary s={summary} onClose={() => setMode('plan')} />;
+  if (mode === 'done' && summary) return <SessionSummary s={summary} onClose={backToPlan} />;
 
   const minutes = Math.max(1, Math.round(plan.estimatedS / 60));
   const where = hasInstrument ? (st.settings.instrument === 'guitare' ? 'avec ta guitare' : 'avec ton piano') : 'à l\'écran';

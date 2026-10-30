@@ -37,6 +37,8 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
   const [items, setItems] = useState<PlanItem[]>(initial);
   const [i, setI] = useState(0);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  /** au moins un exercice terminé : le texte de la barre « quitter » en dépend */
+  const [anyDone, setAnyDone] = useState(false);
   const res = useRef<SessionResult>({ xp: 0, ok: 0, done: 0, precision: 0, perfect: true, skipped: 0, confirmed: [], techUp: [], total: initial.length });
   const reinjected = useRef(new Set<string>());
 
@@ -73,6 +75,7 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
     const r = res.current;
     r.xp += info.xp;
     r.done += 1;
+    setAnyDone(true);
     r.ok += o.success ? 1 : 0;
     r.precision += o.precision;
     if (o.helps.length || info.rating === 1) r.perfect = false;
@@ -116,7 +119,7 @@ export function SessionRunner({ items: initial, onEnd, where = 'séance' }: {
       </View>
       {confirmQuit ? (
         <ConfirmBar
-          text={res.current.done ? 'Terminer la séance ici ? Ce que tu as fait compte.' : 'Quitter la séance ?'}
+          text={anyDone ? 'Terminer la séance ici ? Ce que tu as fait compte.' : 'Quitter la séance ?'}
           confirmLabel="Terminer" cancelLabel="Continuer"
           onConfirm={() => { setConfirmQuit(false); end(true); }} onCancel={() => setConfirmQuit(false)}
         />

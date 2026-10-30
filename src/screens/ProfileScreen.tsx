@@ -1,6 +1,7 @@
 // Moi : ta progression (une seule vue : les compétences, par domaine) et tes réglages, rangés par groupes repliés.
 // La gamification reste (niveau, série, badges) mais discrète : ici et dans le bilan de séance, jamais pendant un exercice.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { InputMode, Instrument } from '../content/types';
@@ -96,7 +97,10 @@ export function ProfileScreen() {
 function Progress() {
   const st = useUserStore();
   const [detail, setDetail] = useState(false);
-  const now = Date.now();
+  // l'heure de référence (semaine, progression) : relevée à l'arrivée sur l'onglet
+  const navigation = useNavigation();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => navigation.addListener('focus', () => setNow(Date.now())), [navigation]);
   const ps = areaProgress(st.competences, lessonProgressOf(st), now);
   const week = Array.from({ length: 7 }, (_, k) => {
     const key = dayKey(now - (6 - k) * 86_400_000);

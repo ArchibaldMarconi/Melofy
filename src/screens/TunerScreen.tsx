@@ -1,7 +1,7 @@
 // Page 5 : Accordeur. Jauge de −50 à +50 cents ; en mode guidé (tout sauf chromatique), les cordes en sphères :
 // la détection se verrouille sur une corde et passe seule à la suivante une fois celle-ci juste. Toucher une sphère
 // la verrouille et joue la note cible. Le dernier accordage choisi est retenu.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
@@ -46,8 +46,8 @@ export function TunerScreen() {
   const fretTuning = useUserStore((s) => s.settings.tuning) ?? 'standard';
   const setSettings = useUserStore((s) => s.setSettings);
   const micGate = useUserStore((s) => s.settings.micGate);
-  const gateRef = useRef(GATE);
-  gateRef.current = micGate ? Math.min(micGate, 0.05) : GATE;
+  const gate = micGate ? Math.min(micGate, 0.05) : GATE;
+  const gateRef = useRef(gate);
   const tuningId = stored && !isGuitarPreset(stored) ? stored
     : instrument === 'guitare' ? (fretTuning === 'standard' ? 'guitare' : fretTuning)
     : stored || 'chromatique';
@@ -66,14 +66,27 @@ export function TunerScreen() {
   const inTuneSince = useRef<number | null>(null);
   const muteUntil = useRef(0);
   const state = useRef({ lock, done, preset });
-  state.current = { lock, done, preset };
+  // le micro lit le dernier rendu validé
+  useLayoutEffect(() => { gateRef.current = gate; state.current = { lock, done, preset }; });
 
-  useEffect(() => { setLock(0); setDone(preset.strings.map(() => false)); setReading(null); hist.current = []; }, [tuningId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // autre accordage : on repart de la première corde (ajusté au rendu ; l'historique du micro dans l'effet)
+  const [shownTuning, setShownTuning] = useState(tuningId);
+  if (shownTuning !== tuningId) {
+    setShownTuning(tuningId);
+    setLock(0); setDone(preset.strings.map(() => false)); setReading(null);
+  }
+  useEffect(() => { hist.current = []; }, [tuningId]);
+
+  // chaque mise en route du micro repart sans l'erreur précédente
+  const [micFor, setMicFor] = useState(focused);
+  if (micFor !== focused) {
+    setMicFor(focused);
+    if (focused) setError(null);
+  }
 
   useEffect(() => {
     if (!focused) return;
     let alive = true;
-    setError(null);
     audio.startMic((f) => {
       if (!alive || audio.now() < muteUntil.current) return;
       if (f.freq === null || f.rms < gateRef.current) { inTuneSince.current = null; return; }

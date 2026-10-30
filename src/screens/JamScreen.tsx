@@ -36,12 +36,12 @@ export function JamScreen() {
   const track = useMemo(() => buildJam(prog, style, keyPc, tempo, instrument), [prog, style, keyPc, tempo, instrument]);
 
   const stop = () => { player.current?.stop(); player.current = null; setPlaying(false); setBar(-1); };
-  const start = async () => {
+  const play = async (tr: typeof track) => {
     stop();
     setError(null);
     try {
       await audio.init();
-      const data = audio.renderLayers(track.layers, track.tempo, track.beats);
+      const data = audio.renderLayers(tr.layers, tr.tempo, tr.beats);
       t0.current = audio.now() + 120;
       player.current = await audio.playRaw(data, true, 0.9);
       setPlaying(true);
@@ -49,10 +49,19 @@ export function JamScreen() {
       setError('Le son n\'a pas pu démarrer : vérifie le volume et le mode silencieux, puis réessaie.');
     }
   };
+  const start = () => play(track);
   // un réglage changé pendant la lecture : la boucle repart avec le nouveau
-  useEffect(() => { if (playing) start(); }, [track]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!focused) stop(); }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const change = (next: { progId?: string; styleId?: string; key?: string; tempo?: number }) => {
+    const n = { progId, styleId, key, tempo, ...next };
+    setProgId(n.progId); setStyleId(n.styleId); setKey(n.key); setTempo(n.tempo);
+    const p = PROGRESSIONS.find((x) => x.id === n.progId)!;
+    const s = STYLES.find((x) => x.id === n.styleId)!;
+    const pc = JAM_KEYS.find((k) => k.id === n.key)!.pc;
+    if (playing && (p !== prog || s !== style || pc !== keyPc || n.tempo !== tempo)) play(buildJam(p, s, pc, n.tempo, instrument));
+  };
+  // quitter l'écran coupe la boucle
+  useEffect(() => { if (!focused) return; return () => stop(); }, [focused]);
+  useEffect(() => () => stop(), []);
   useEffect(() => {
     if (!playing) return;
     const beatMs = 60000 / track.tempo;
@@ -89,22 +98,22 @@ export function JamScreen() {
           <View style={styles.card}>
             <Text style={type.small}>Grille</Text>
             {PROGRESSIONS.map((p) => (
-              <Pressable key={p.id} onPress={() => setProgId(p.id)} accessibilityRole="radio" accessibilityState={{ checked: p.id === progId }} style={[styles.option, p.id === progId && styles.optionOn]}>
+              <Pressable key={p.id} onPress={() => change({ progId: p.id })} accessibilityRole="radio" accessibilityState={{ checked: p.id === progId }} style={[styles.option, p.id === progId && styles.optionOn]}>
                 <Text style={[type.body, { fontWeight: '800' }, p.id === progId && { color: colors.onFill }]}>{p.label}</Text>
                 <Text style={[type.small, p.id === progId && { color: colors.onPrimarySoft }]}>{p.line}</Text>
               </Pressable>
             ))}
             <Text style={type.small}>Style</Text>
             <View style={styles.row}>
-              {STYLES.map((s) => <Chip key={s.id} label={s.label} on={s.id === styleId} onPress={() => { setStyleId(s.id); setTempo(s.tempo); }} />)}
+              {STYLES.map((s) => <Chip key={s.id} label={s.label} on={s.id === styleId} onPress={() => change({ styleId: s.id, tempo: s.tempo })} />)}
             </View>
             <Text style={type.small}>Tonalité</Text>
             <View style={styles.row}>
-              {JAM_KEYS.map((k) => <Chip key={k.id} label={KEY_LABEL[k.id]} on={k.id === key} onPress={() => setKey(k.id)} />)}
+              {JAM_KEYS.map((k) => <Chip key={k.id} label={KEY_LABEL[k.id]} on={k.id === key} onPress={() => change({ key: k.id })} />)}
             </View>
             <Text style={type.small}>Tempo</Text>
             <View style={styles.row}>
-              {[-10, -5, 5, 10].map((d) => <Chip key={d} label={d > 0 ? `+${d}` : `${d}`} on={false} onPress={() => setTempo((t) => Math.max(50, Math.min(180, t + d)))} />)}
+              {[-10, -5, 5, 10].map((d) => <Chip key={d} label={d > 0 ? `+${d}` : `${d}`} on={false} onPress={() => change({ tempo: Math.max(50, Math.min(180, tempo + d)) })} />)}
               <Text style={[type.body, { fontWeight: '900', alignSelf: 'center' }]}>{tempo} BPM</Text>
             </View>
           </View>

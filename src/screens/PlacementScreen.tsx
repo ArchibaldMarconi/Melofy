@@ -1,6 +1,6 @@
 // Test de placement par domaine. Rythme, oreille, théorie et lecture, technique : chacun trouve sa propre limite,
 // indépendamment des autres. Résultat : un niveau par domaine (bases à construire ici, défis là).
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CONCEPTS } from '../content/concepts';
@@ -20,40 +20,44 @@ type Phase = 'intro' | 'run' | 'done';
 const MAX_PER_DOMAIN = 5;
 type Results = Record<PlacementDomain, Record<number, boolean>>;
 const emptyResults = (): Results => ({ rythme: {}, oreille: {}, theorie: {}, technique: {} });
+/** déroulé du test : un seul état, mis à jour par fonctions (enregistrer puis passer à la suite s'enchaînent) */
+interface Run { phase: Phase; d: number; current: number | null; count: number; results: Results }
+/** ouvre le domaine k : première question selon le profil */
+const openDomain = (r: Run, k: number, profile: PlacementProfile): Run =>
+  ({ ...r, d: k, current: nextProbe({}, profile, DOMAIN_PROBES[PLACEMENT_DOMAINS[k]].length) });
+const closeDomain = (r: Run, profile: PlacementProfile): Run =>
+  (r.d + 1 < PLACEMENT_DOMAINS.length ? openDomain(r, r.d + 1, profile) : { ...r, phase: 'done' });
 
 export function PlacementScreen() {
   const placeOut = useUserStore((s) => s.placeOut);
   const cancel = useUserStore((s) => s.setPlacementPending);
   // niveau déjà déclaré à l'accueil : on ne le redemande pas
   const preset = useUserStore((s) => s.placementProfile);
-  const [phase, setPhase] = useState<Phase>('intro');
   const [profile, setProfile] = useState<PlacementProfile | null>(preset);
-  const [d, setD] = useState(0); // indice du domaine en cours
-  const [current, setCurrent] = useState<number | null>(null);
-  const [count, setCount] = useState(0);
-  const results = useRef<Results>(emptyResults());
-  const seed = useRef(newSeed());
+  // d : indice du domaine en cours
+  const [run, setRun] = useState<Run>(() => ({ phase: 'intro', d: 0, current: null, count: 0, results: emptyResults() }));
+  const { phase, d, current, count, results } = run;
+  const [seed] = useState(newSeed);
 
   const domain = PLACEMENT_DOMAINS[d];
   const probes = DOMAIN_PROBES[domain];
 
-  const startDomain = (k: number) => {
-    const dom = PLACEMENT_DOMAINS[k];
-    setD(k);
-    setCurrent(nextProbe({}, profile!, DOMAIN_PROBES[dom].length));
-  };
-  const start = () => { results.current = emptyResults(); setCount(1); startDomain(0); setPhase('run'); };
-  const record = (success: boolean) => { if (current !== null) results.current[domain][current] = success; };
-  const nextDomain = () => { if (d + 1 < PLACEMENT_DOMAINS.length) startDomain(d + 1); else setPhase('done'); };
-  const next = () => {
-    const tested = Object.keys(results.current[domain]).length;
-    const k = tested >= MAX_PER_DOMAIN ? null : nextProbe(results.current[domain], profile!, probes.length);
-    setCount((c) => c + 1);
-    if (k !== null) { setCurrent(k); return; }
-    nextDomain();
-  };
+  const start = () => setRun((r) => ({ ...openDomain({ ...r, results: emptyResults(), count: 1 }, 0, profile!), phase: 'run' }));
+  const record = (success: boolean) => setRun((r) => {
+    if (r.current === null) return r;
+    const dom = PLACEMENT_DOMAINS[r.d];
+    return { ...r, results: { ...r.results, [dom]: { ...r.results[dom], [r.current]: success } } };
+  });
+  const nextDomain = () => setRun((r) => closeDomain(r, profile!));
+  const next = () => setRun((r) => {
+    const dom = PLACEMENT_DOMAINS[r.d];
+    const tested = Object.keys(r.results[dom]).length;
+    const k = tested >= MAX_PER_DOMAIN ? null : nextProbe(r.results[dom], profile!, DOMAIN_PROBES[dom].length);
+    const counted = { ...r, count: r.count + 1 };
+    return k !== null ? { ...counted, current: k } : closeDomain(counted, profile!);
+  });
   const reachedTitle = (dom: PlacementDomain) => {
-    const k = highestPassed(results.current[dom]);
+    const k = highestPassed(results[dom]);
     return k < 0 ? null : CONCEPTS.find((c) => c.id === DOMAIN_PROBES[dom][k].conceptId);
   };
 
@@ -96,14 +100,14 @@ export function PlacementScreen() {
           </Pressable>
         </View>
         <ExercisePlayer
-          key={`${domain}-${current}-${count}`} placement template={templateById(probe.templateId)} params={probe.params} seed={seed.current + count} inSession={false}
+          key={`${domain}-${current}-${count}`} placement template={templateById(probe.templateId)} params={probe.params} seed={seed + count} inSession={false}
           onFinished={(_, o) => record(o.success)} onNext={next} onSkip={() => { record(false); next(); }}
         />
       </SafeAreaView>
     );
   }
 
-  const pairs = PLACEMENT_DOMAINS.flatMap((dom) => placedPairs(dom, results.current[dom]));
+  const pairs = PLACEMENT_DOMAINS.flatMap((dom) => placedPairs(dom, results[dom]));
   const all = [...pairs, ...placedImproPairs(pairs)];
   const anything = pairs.length > 0;
   return (

@@ -1,6 +1,6 @@
 // Lecteur d'exercice : la machine à états unique décrite dans la spéc.
 // CONSIGNE → ECOUTE → SAISIE → ANALYSE → (SUCCES | FEEDBACK → ECOUTE | DEMO) → RESULTAT
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { QuizRunner } from './QuizRunner';
 import { figureBeats, figureOnsets, generate, mergeParams } from '../engine/generators';
@@ -78,7 +78,6 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
     : inputOptions.includes(settings.inputPref) ? settings.inputPref : inputOptions[0];
   const [input, setInput] = useState<InputMode>(initialInput);
   const inputRef = useRef(input);
-  inputRef.current = input;
 
   // points de leçon de l'exercice : montrés une fois avant le 1er essai, puis toujours accessibles
   const consigne = CONSIGNES[t.id];
@@ -125,7 +124,9 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
 
   const startedAt = useRef(audio.now());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const answerRef = useRef<() => Answer>(() => ({ kind: 'free', notes: [] }));
+  // les minuteries appellent toujours la version à jour (évite les états périmés)
+  const submitRef = useRef<(o?: Answer) => void>(() => undefined);
+  const onNextRef = useRef(onNext);
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   // les exemples de l'exercice (question, modèle, démonstration, ta version) : jamais deux à la fois ; coupés quand
@@ -141,7 +142,6 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   // repli : si le micro échoue, on répond au clavier / manche / écran
   const [fallback, setFallback] = useState(false);
   const fallbackRef = useRef(false);
-  fallbackRef.current = fallback;
   const singing = v.answerUI === 'sing' && !fallback;
   const micOn = capturing && !transcribing && (input === 'micro' || singing);
   const gate = settings.micGate ?? DEFAULT_GATE;
@@ -155,7 +155,6 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   const holdStart = useRef<number | null>(null);
   const holdRef = useRef<number | null>(null);
   const guidedRef = useRef(guided);
-  guidedRef.current = guided;
   const holdDone = useRef(false);
   const [hold, setHold] = useState(0);
   const { liveMidi, error: micError } = useMic(micOn, origin, {
@@ -176,7 +175,14 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       } else { holdStart.current = null; holdRef.current = null; setHold(0); }
     },
   }, gate);
-  useEffect(() => { if (phase === 'SAISIE') { holdDone.current = false; holdStart.current = null; holdRef.current = null; setHold(0); } }, [phase, attempt]);
+  // chaque saisie (nouvel essai compris) repart d'une tenue nulle : l'affichage au rendu, le suivi du micro dans l'effet
+  const holdFor = `${phase}-${attempt}`;
+  const [holdShownFor, setHoldShownFor] = useState(holdFor);
+  if (holdShownFor !== holdFor) {
+    setHoldShownFor(holdFor);
+    if (phase === 'SAISIE') setHold(0);
+  }
+  useEffect(() => { if (phase === 'SAISIE') { holdDone.current = false; holdStart.current = null; holdRef.current = null; } }, [phase, attempt]);
   const switchToFallback = () => {
     setFallback(true);
     setInput(v.answerUI === 'tap' ? 'tap' : instrument === 'guitare' ? 'manche' : 'clavier');
@@ -201,7 +207,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
     backingRef.current = audio.play(ev, { tempo: v.tempo, instrument, volume: 0.35 });
   };
   const stopBacking = () => { backingRef.current?.stop(); backingRef.current = null; };
-  useEffect(() => () => stopBacking(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => stopBacking(), []);
 
   // le micro capterait le bourdon ou l'accompagnement (et validerait la tonique tout seul) :
   // on les coupe pendant que le micro écoute, ils restent pendant l'écoute du modèle
@@ -295,7 +301,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   };
 
   // ---------- analyse ----------
-  answerRef.current = (): Answer => {
+  const currentAnswer = (): Answer => {
     switch (v.answerUI) {
       case 'quiz': return { kind: 'quiz', ids: quizIds };
       case 'tap': return { kind: 'taps', tMs: taps };
@@ -308,12 +314,6 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
     }
   };
 
-  // les minuteries appellent toujours la version à jour (évite les états périmés)
-  const submitRef = useRef<(o?: Answer) => void>(() => undefined);
-  const onNextRef = useRef(onNext);
-  onNextRef.current = onNext;
-  submitRef.current = (o?: Answer) => submit(o);
-
   function submit(override?: Answer) {
     clearTimers();
     // réponse donnée avant la fin de l'exemple : on le coupe
@@ -324,7 +324,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
       const r = scoreTranscription(v.transcription, degrees, true);
       res = { ...r, success: r.precision >= t.reussite.precisionMin };
     } else {
-      res = scoreAnswer(t, { ...v, tempo: v.tempo * rate }, override ?? answerRef.current(), settings.latencyMs);
+      res = scoreAnswer(t, { ...v, tempo: v.tempo * rate }, override ?? currentAnswer(), settings.latencyMs);
     }
     setLast(res);
     // « trouve la maison » : la vraie tonique joue juste après ta réponse, pour comparer
@@ -513,6 +513,16 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
   const keyLabels = findTask ? 'aucun' : namedTask || settings.showNoteNames ? 'notes' : 'degres';
   // audiation : pas de degrés sur les touches (sinon on lit au lieu d'entendre) ; seule la tonique reste marquée
   const instrumentLabels = v.audiate ? 'aucun' as const : keyLabels;
+
+  // les minuteries et le micro lisent ces refs : elles suivent le dernier rendu validé
+  useLayoutEffect(() => {
+    inputRef.current = input;
+    fallbackRef.current = fallback;
+    guidedRef.current = guided;
+    onNextRef.current = onNext;
+    submitRef.current = (o?: Answer) => submit(o);
+  });
+
   if (openPoint) {
     return (
       <ScrollView contentContainerStyle={styles.pad}>

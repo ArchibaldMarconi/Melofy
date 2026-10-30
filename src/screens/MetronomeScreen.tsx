@@ -51,8 +51,13 @@ export function MetronomeScreen() {
   const [more, setMore] = useState(false);
   const sig = signatureById(st.signature);
 
-  useEffect(() => { setTempoText(String(st.tempo)); }, [st.tempo]);
-  useEffect(() => { if (!auto.on) setAuto((a) => ({ ...a, start: st.tempo })); }, [st.tempo]); // eslint-disable-line react-hooks/exhaustive-deps
+  // nouveau tempo (saisie, tap, roue, preset) : le champ et le départ de l'automate suivent (ajusté au rendu)
+  const [seenTempo, setSeenTempo] = useState(st.tempo);
+  if (seenTempo !== st.tempo) {
+    setSeenTempo(st.tempo);
+    setTempoText(String(st.tempo));
+    if (!auto.on) setAuto((a) => ({ ...a, start: st.tempo }));
+  }
 
   const automation: Automation | undefined = auto.on && auto.step ? { step: auto.step, everyBars: auto.everyBars, ceiling: auto.ceiling ? clampTempo(Number(auto.ceiling)) : undefined } : undefined;
   const config: MetronomeConfig = useMemo(() => ({
@@ -91,7 +96,7 @@ export function MetronomeScreen() {
     return { track, data: audio.renderClicks(track.clicks, track.durS), loop: !automating, fromBar };
   }, [sig.beats]);
 
-  const launch = useCallback(async (c: MetronomeConfig, prep: ReturnType<typeof prepare>, g: number) => {
+  const launch = useCallback(async function launchSegment(c: MetronomeConfig, prep: ReturnType<typeof prepare>, g: number): Promise<void> {
     const p = await audio.playRaw(prep.data, prep.loop);
     if (g !== gen.current) { p.stop(); return; }
     const prev = play.current;
@@ -106,7 +111,7 @@ export function MetronomeScreen() {
       timers.current.push(setTimeout(() => { if (g === gen.current) nextPrep = prepare(c, next); }, Math.max(0, prep.track.durS * 1000 - 3000)));
       timers.current.push(setTimeout(() => {
         if (g !== gen.current) return;
-        launch(c, nextPrep ?? prepare(c, next), g).catch(() => {});
+        launchSegment(c, nextPrep ?? prepare(c, next), g).catch(() => {});
       }, prep.track.durS * 1000 - 70));
     }
   }, [prepare]);
@@ -127,7 +132,11 @@ export function MetronomeScreen() {
     return () => { if (restart.current) clearTimeout(restart.current); };
   }, [config]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (!focused && running) { stopAll(); setRunning(false); } }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
+  // quitter l'écran arrête le métronome
+  useEffect(() => {
+    if (!focused) return;
+    return () => { stopAll(); setRunning(false); };
+  }, [focused, stopAll]);
   useEffect(() => () => stopAll(), [stopAll]);
 
   // affichage du temps en cours
@@ -153,14 +162,15 @@ export function MetronomeScreen() {
     const t = tapTempo(taps.current);
     if (t) st.set({ tempo: t });
   };
-  const drag = useRef({ base: st.tempo });
-  const tempoRef = useRef(st.tempo);
-  tempoRef.current = st.tempo;
-  const pan = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 6,
-    onPanResponderGrant: () => { drag.current.base = tempoRef.current; },
-    onPanResponderMove: (_, g) => { st.set({ tempo: clampTempo(drag.current.base - g.dy / 3) }); },
-  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const pan = useMemo(() => {
+    // tempo au début du geste, lu dans le store au moment du toucher
+    let base = 0;
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 6,
+      onPanResponderGrant: () => { base = useToolsStore.getState().tempo; },
+      onPanResponderMove: (_, g) => { st.set({ tempo: clampTempo(base - g.dy / 3) }); },
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commitTempo = () => {
     const n = Number(tempoText);
