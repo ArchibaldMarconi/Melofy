@@ -128,6 +128,8 @@ export interface QuizItem {
   choices: { id: string; label: string; preview?: NoteEvent[] }[];
   answerId: string;
   display?: Display;
+  /** collier : les réponses sont des intervalles (id = nombre de demi-tons), en cercle, une perle par demi-ton */
+  layout?: 'collier';
 }
 
 /** Degré relatif à la tonique : degree 1..7 (8 = octave), acc -1 bémol / +1 dièse, dur en temps. */

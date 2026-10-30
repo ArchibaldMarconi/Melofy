@@ -496,7 +496,7 @@ export function generate(t: ExerciseTemplate, overrides: Params | undefined, see
           : sens === 'descendant' ? [{ midi: a + st, start: 0, dur: 1 }, { midi: a, start: 1, dur: 1.5 }]
           : sens === 'harmonique' ? [{ midi: a, start: 0, dur: 2 }, { midi: a + st, start: 0, dur: 2 }]
           : [{ midi: a, start: 0, dur: 1 }, { midi: a + st, start: 1, dur: 1 }, { midi: a, start: 2.5, dur: 1.5 }, { midi: a + st, start: 2.5, dur: 1.5 }];
-        return { stimulus: stim, tempo: 80, choices: set.map((x) => choice(String(x), LABELS[x])), answerId: String(st) };
+        return { stimulus: stim, tempo: 80, choices: set.map((x) => choice(String(x), LABELS[x])), answerId: String(st), layout: 'collier' };
       });
       return { ...v, intervalSens: sens as Variant['intervalSens'], prompt: sens === 'descendant' ? 'Quel intervalle descendant entends-tu ?' : sens === 'harmonique' ? 'Deux notes ensemble : quel intervalle ?' : 'Quel intervalle entends-tu ?', expected: { kind: 'quiz', items },
         hint: sens === 'descendant'

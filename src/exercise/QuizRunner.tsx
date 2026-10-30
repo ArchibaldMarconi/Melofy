@@ -9,6 +9,7 @@ import { announce } from '../a11y';
 import { useUserStore } from '../store/useUserStore';
 import { Button } from '../components/Button';
 import { DisplayView } from '../components/DisplayView';
+import { IntervalNecklace } from '../components/IntervalNecklace';
 import { colors, type } from '../theme';
 
 export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onReplay, minor = false, onIndex }: {
@@ -65,6 +66,13 @@ export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onRe
       <Text style={type.small}>Question {i + 1}/{items.length}</Text>
       <DisplayView d={it.display} color={color} instrument={instrument} tab={useUserStore.getState().settings.guitarReading === 'tab'} />
       {it.stimulus.length ? <Button small variant="contour" color={color} label="Réécouter" onPress={() => { onReplay(); play(); }} /> : null}
+      {it.layout === 'collier' ? (
+        <IntervalNecklace
+          choices={it.choices} color={color} disabled={!!flash} onPick={answer}
+          picked={flash ? ids[ids.length - 1] : undefined} pickedColor={flash ?? undefined} correct={review ? it.answerId : undefined}
+          caption={review || flash === colors.success ? `✓ ${it.choices.find((c) => c.id === it.answerId)?.label}` : '1 perle = 1 demi-ton'}
+        />
+      ) : (
       <View style={styles.choices}>
         {it.choices.map((c) => {
           const mine = flash && ids[ids.length - 1] === c.id;
@@ -83,6 +91,7 @@ export function QuizRunner({ items, color, tonic, instrument, rate, onDone, onRe
           ) : btn;
         })}
       </View>
+      )}
       {review ? (
         <Button color={color} label="Question suivante" onPress={() => advance(ids)} />
       ) : null}
