@@ -5,11 +5,11 @@ import type {
 } from '../content/types';
 import { mulberry32, pick, randInt, shuffle, type Rng } from './rng';
 import {
-  beatsToMs, degreeItemsFromNotes, degreeNoteName, degreeToMidi, diatonicTriad, GUITAR_OPEN, KEY_LABEL, KEY_PC, mod12, noteName,
+  beatsToMs, degreeItemsFromNotes, degreeNoteName, degreeToMidi, diatonicTriad, GUITAR_OPEN, KEY_LABEL, KEY_PC, mod12,
   pcName, resolveTonic, ROMAN, stepAfter, triad, droneFor, naturalsBetween, VARIED_KEYS, degreeToSemitone,
+  alteredLetters, applyKeySig, FLAT_NAMES, keyBySig, MAJOR_KEYS, nameInKey, referenceEvents, SHARP_NAMES,
 } from './music';
 import { alternatePicking, arpeggioPosition, chordShape, CHORD_SHAPES, pianoLeftFingering, pianoScaleFingering, scalePosition } from './positions';
-import { alteredLetters, applyKeySig, FLAT_NAMES, keyBySig, MAJOR_KEYS, nameInKey, referenceEvents, SHARP_NAMES } from './music';
 import { BORROWED, EXTENSIONS, MELODIC_MODES, MODES, SECONDARY, CADENCES, chordName, diatonicSeventh, DIATONIC7_ROMAN, scaleNote, SEVENTH_LABEL, SEVENTH_SEMI, DEG_SEMI, DIATONIC_QUALITY, DIATONIC_ROMAN, INTERVAL_LABEL, MAJOR, MINOR, MINOR_PENTA, TRIAD_LABEL, TRIAD_SEMI, tokenMelody, tokLabel, tokMidi, tokToItem, triadOf } from './chroma';
 import { tunesFor, tuneDegreeSemis, TUNES } from '../content/tunes';
 import { maxLevel, resolveParams } from './difficulty';

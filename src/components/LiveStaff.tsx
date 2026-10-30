@@ -18,7 +18,7 @@ export function LiveStaff({ midis, instrument, tab, color }: { midis: number[]; 
         tab && instrument === 'guitare'
           ? <Tab midis={written} color={color} />
           : <Staff midis={written} color={color} label={`Notes jouées : ${midis.slice(-MAX).map((m) => pcName(m)).join(', ')}`} />
-      ) : <Text style={styles.empty}>Joue : tes notes s'écrivent ici.</Text>}
+      ) : <Text style={styles.empty}>{'Joue : tes notes s\'écrivent ici.'}</Text>}
     </View>
   );
 }

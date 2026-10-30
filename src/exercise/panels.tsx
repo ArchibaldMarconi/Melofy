@@ -19,7 +19,7 @@ export function ConsigneCard({ color, instrument, faire, how, success, placement
         <Text style={type.body}>{faire}</Text>
         <Text style={[styles.cHead, { color }]}>Pour répondre</Text>
         <Text style={type.body}>{how}</Text>
-        <Text style={[styles.cHead, { color }]}>C'est réussi si…</Text>
+        <Text style={[styles.cHead, { color }]}>{'C\'est réussi si…'}</Text>
         <Text style={type.body}>{success}</Text>
         {!placement ? <Text style={type.small}>Tu as 3 essais. Le bouton « Aide » propose de ralentir, un indice, la correction ou une démonstration.</Text> : null}
       </View>
@@ -58,7 +58,7 @@ export function FeedbackPanel({ last, color, instrument, revealed, shake, showAl
       {timeline ? <RhythmTimeline expectedMs={timeline.expected} tapsMs={timeline.taps} tolMs={timeline.tolMs} /> : null}
       {compare ? (
         <View style={styles.compare}>
-          <Text style={type.small}>Compare à l'oreille :</Text>
+          <Text style={type.small}>{'Compare à l\'oreille :'}</Text>
           <View style={styles.row}>
             <Button small variant="contour" color={color} label="▶ Ta version" onPress={compare.onMine} style={{ flex: 1 }} />
             <Button small variant="contour" color={color} label={compare.modelIsHint ? '▶ Le modèle (indice)' : '▶ Le modèle'} onPress={compare.onModel} style={{ flex: 1 }} />

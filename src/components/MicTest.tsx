@@ -52,7 +52,7 @@ export function MicTest({ gate, onSave }: { gate: number | undefined; onSave: (g
           {phase === 'noise' ? <Text style={type.body}>Silence… je mesure le bruit de la pièce.</Text> : null}
           {phase === 'live' ? (
             <>
-              <Text style={type.body}>Joue ou chante une note : elle doit s'afficher et l'aiguille se stabiliser.</Text>
+              <Text style={type.body}>{'Joue ou chante une note : elle doit s\'afficher et l\'aiguille se stabiliser.'}</Text>
               <PitchMeter midi={liveMidi} />
               {g >= 0.06 ? <Text style={[type.small, { color: colors.warn }]}>Pièce bruyante : rapproche-toi du téléphone ou coupe la source de bruit.</Text> : null}
               <View style={styles.row}>

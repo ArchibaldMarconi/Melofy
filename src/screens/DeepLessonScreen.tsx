@@ -85,7 +85,7 @@ export function DeepLessonScreen() {
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={[styles.kicker, { color: accent }]}>Leçon {lesson.number}</Text>
           <Text style={type.display}>{lesson.title}</Text>
-          <Text style={type.body}>Cette leçon s'appuie sur {missing.length > 1 ? 'des leçons' : 'une leçon'} que tu n'as pas encore validée{missing.length > 1 ? 's' : ''} :</Text>
+          <Text style={type.body}>{'Cette leçon s\'appuie sur '}{missing.length > 1 ? 'des leçons' : 'une leçon'}{' que tu n\'as pas encore validée'}{missing.length > 1 ? 's' : ''} :</Text>
           {missing.map((l) => (
             <Button key={l!.id} variant="contour" color={accent} label={`Leçon ${l!.number} · ${l!.title}`} onPress={() => (nav as unknown as { replace: (r: string, p: object) => void }).replace('DeepLesson', { id: l!.id })} />
           ))}
@@ -105,10 +105,10 @@ export function DeepLessonScreen() {
           <Text style={[styles.kicker, { color: accent }]}>Leçon {lesson.number}</Text>
           <Text style={type.display}>{lesson.title}</Text>
           <Text style={type.body}>{lesson.why}</Text>
-          {lesson.provisional ? <Text style={type.small}>Version courte : l'essentiel pour commencer à pratiquer. La leçon approfondie arrive dans une prochaine version.</Text> : null}
+          {lesson.provisional ? <Text style={type.small}>{'Version courte : l\'essentiel pour commencer à pratiquer. La leçon approfondie arrive dans une prochaine version.'}</Text> : null}
           {d ? (
             <View style={styles.card}>
-              <Text style={styles.cardKicker}>Écoute d'abord</Text>
+              <Text style={styles.cardKicker}>{'Écoute d\'abord'}</Text>
               <Text style={type.title}>{d.question}</Text>
               <View style={styles.row}>
                 <Button variant="contour" color={accent} label="▶ Écouter A" onPress={() => play(d.a.notes, d.a.tempo)} style={{ flex: 1 }} />
@@ -196,7 +196,7 @@ export function DeepLessonScreen() {
         {header}
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={type.display}>À toi de jouer</Text>
-          <Text style={type.body}>Un exercice dans chaque domaine où cette notion compte. Prends ton temps : l'important est de comprendre, pas d'aller vite.</Text>
+          <Text style={type.body}>{'Un exercice dans chaque domaine où cette notion compte. Prends ton temps : l\'important est de comprendre, pas d\'aller vite.'}</Text>
           <View style={{ gap: 8 }}>
             {practice.map((p, i) => (
               <View key={i} style={[styles.practiceRow, { borderLeftColor: DOMAIN_COLOR[p.domain] }]}>

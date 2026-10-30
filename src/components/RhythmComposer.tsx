@@ -3,7 +3,6 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RhythmSymbol } from '../content/types';
 import { colors } from '../theme';
-import { Button } from './Button';
 import { FigureGlyph, RhythmNotation } from './RhythmNotation';
 
 const FIGS: { s: RhythmSymbol; label: string; beats: number }[] = [
@@ -21,7 +20,7 @@ export function RhythmComposer({ items, onChange, color, total, figures, wrongIn
   return (
     <View style={{ gap: 10 }}>
       <View style={styles.score} accessibilityLabel={`Ton rythme : ${items.join(', ') || 'vide'}`}>
-        {items.length ? <RhythmNotation items={items} highlight={wrongIndexes} /> : <Text style={styles.placeholder}>Touche les figures dans l'ordre</Text>}
+        {items.length ? <RhythmNotation items={items} highlight={wrongIndexes} /> : <Text style={styles.placeholder}>{'Touche les figures dans l\'ordre'}</Text>}
       </View>
       <Text style={[styles.count, used > total && { color: colors.danger }]}>{used} / {total} temps écrits</Text>
       <View style={styles.row}>

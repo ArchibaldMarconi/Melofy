@@ -22,18 +22,21 @@ const DRILL_SKILL = { notes: 'notes_instrument', intervalles: 'intervalles_instr
 export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: () => void }) {
   const instrument = useUserStore((s) => s.settings.instrument);
   const gate = useUserStore((s) => s.settings.micGate);
-  const tuning = useMemo(getTuning, []);
-  const rng = useRef(mulberry32(newSeed()));
-  const [target, setTarget] = useState<DrillTarget>(() => makeTarget(config, rng.current, instrument, tuning));
+  const tuning = useMemo(() => getTuning(), []);
+  const [rng] = useState(() => mulberry32(newSeed()));
+  const [target, setTarget] = useState<DrillTarget>(() => makeTarget(config, rng, instrument, tuning));
   const [prog, setProg] = useState<Progress>({ index: 0, found: [], errors: 0 });
   const [flash, setFlash] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [left, setLeft] = useState(config.minutes * 60);
-  const stats = useRef({ targets: 0, errors: 0, notes: 0, t0: Date.now(), times: [] as number[] });
-  const targetStart = useRef(Date.now());
+  const [stats, setStats] = useState({ targets: 0, errors: 0, notes: 0, times: [] as number[] });
+  const targetStart = useRef(0);
   const locked = useRef(false);
   // positions (niveaux 2 et 3) : uniquement à l'écran, le micro ne distingue pas deux cases qui donnent la même note
   const useMicInput = config.input === 'micro' && !target.positions;
+
+  // la première cible s'affiche au montage
+  useEffect(() => { targetStart.current = Date.now(); }, []);
 
   useEffect(() => {
     const iv = setInterval(() => setLeft((s) => { if (s <= 1) { clearInterval(iv); setDone(true); return 0; } return s - 1; }), 1000);
@@ -41,9 +44,9 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   }, []);
 
   const next = () => {
-    stats.current.targets++;
-    stats.current.times.push((Date.now() - targetStart.current) / 1000);
-    const t = makeTarget(config, rng.current, instrument, tuning);
+    const dt = (Date.now() - targetStart.current) / 1000;
+    setStats((s) => ({ ...s, targets: s.targets + 1, times: [...s.times, dt] }));
+    const t = makeTarget(config, rng, instrument, tuning);
     setTarget(t);
     setProg({ index: 0, found: [], errors: 0 });
     targetStart.current = Date.now();
@@ -55,9 +58,9 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
     if (locked.current || done) return;
     if (!useMicInput) audio.playNote(midi, instrument);
     const r = step(target, prog, { midi, pos });
-    stats.current.notes++;
+    setStats((s) => ({ ...s, notes: s.notes + 1 }));
     setProg(r.p);
-    if (r.result === 'wrong') { stats.current.errors++; setFlash(colors.danger); setTimeout(() => setFlash(null), 300); return; }
+    if (r.result === 'wrong') { setStats((s) => ({ ...s, errors: s.errors + 1 })); setFlash(colors.danger); setTimeout(() => setFlash(null), 300); return; }
     setFlash(colors.success); setTimeout(() => setFlash(null), 250);
     if (r.result === 'done') {
       locked.current = true;
@@ -82,7 +85,7 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   useEffect(() => {
     if (done && !credited.current) {
       credited.current = true;
-      const st = stats.current;
+      const st = stats;
       useUserStore.getState().addPracticeXp(Math.min(20, st.targets));
       // la série compte aussi comme une révision de la compétence entraînée (si elle est due)
       if (st.targets >= 3) {
@@ -91,10 +94,10 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
       }
     }
     if (!done) credited.current = false;
-  }, [done]);
+  }, [done, stats, config.kind]);
 
   if (done) {
-    const s = stats.current;
+    const s = stats;
     const precision = s.notes ? Math.round(((s.notes - s.errors) / s.notes) * 100) : 0;
     const avg = s.times.length ? (s.times.reduce((a, x) => a + x, 0) / s.times.length).toFixed(1) : '–';
     return (
@@ -106,7 +109,7 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
           <View style={styles.stat}><Text style={styles.statNum}>{avg} s</Text><Text style={type.small}>par cible</Text></View>
         </View>
         <Text style={type.body}>{precision >= 90 ? 'Très solide : augmente la difficulté (zone, altérations, nouveaux intervalles).' : 'Refais une série : la vitesse vient avec la répétition.'}</Text>
-        <Button label="Recommencer" onPress={() => { stats.current = { targets: 0, errors: 0, notes: 0, t0: Date.now(), times: [] }; setLeft(config.minutes * 60); setDone(false); next(); }} />
+        <Button label="Recommencer" onPress={() => { setStats({ targets: 0, errors: 0, notes: 0, times: [] }); setLeft(config.minutes * 60); setDone(false); next(); }} />
         <Button variant="texte" color={colors.inkSoft} label="Retour à la pratique" onPress={onExit} />
       </ScrollView>
     );

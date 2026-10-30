@@ -98,7 +98,7 @@ export function WorkoutScreen() {
         {plan.needsLesson ? (
           <View style={styles.hero}>
             <Text style={[type.title, { color: colors.onPrimary }]}>Ta séance se construit à partir de tes leçons</Text>
-            <Text style={styles.heroLine}>Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s'ouvre ensuite.</Text>
+            <Text style={styles.heroLine}>{'Commence par une leçon : quelques minutes pour écouter, essayer, comprendre. Ta séance s\'ouvre ensuite.'}</Text>
             {lessonsToDiscover(progress, st.settings.instrument).map((l) => (
               <Pressable key={l.id} onPress={() => navigation.navigate('DeepLesson', { id: l.id })} accessibilityRole="button" accessibilityLabel={`Commencer la leçon ${l.number} : ${l.title}`}
                 style={({ pressed }) => [styles.heroBtn, pressed && { opacity: 0.85 }]}>
@@ -137,7 +137,7 @@ export function WorkoutScreen() {
           </Pressable>
         ) : null}
         {showPlan ? <PlanDetail items={plan.items} instrument={st.settings.instrument} /> : null}
-        {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>Rien à pratiquer aujourd'hui : découvre une nouvelle leçon.</Text> : null}
+        {!plan.needsLesson && plan.items.length === 0 ? <Text style={type.body}>{'Rien à pratiquer aujourd\'hui : découvre une nouvelle leçon.'}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

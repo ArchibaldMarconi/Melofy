@@ -1,6 +1,6 @@
 // Hook micro : notes segmentées, attaques, hauteur et niveau instantanés.
 // Le seuil de bruit (gate) vient du test micro de Profil ; sans test, valeur prudente.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PlayedNote } from '../content/types';
 import { freqToMidi } from '../engine/music';
 import { audio } from './RNAudioEngine';
@@ -23,12 +23,19 @@ export function useMic(
   const [liveMidi, setLiveMidi] = useState<number | null>(null);
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // chaque nouvelle écoute repart sans l'erreur de la précédente (ajusté au rendu, avant l'effet)
+  const listen = `${active}|${originMs}|${gate}`;
+  const [lastListen, setLastListen] = useState(listen);
+  if (listen !== lastListen) {
+    setLastListen(listen);
+    if (active) setError(null);
+  }
+  // les rappels du micro appellent toujours les gestionnaires du dernier rendu
   const h = useRef(handlers);
-  h.current = handlers;
+  useLayoutEffect(() => { h.current = handlers; });
 
   useEffect(() => {
     if (!active) return;
-    setError(null);
     const seg = new NoteSegmenter({ rmsOn: gate, rmsOff: gate / 2, minDurMs: 70, jumpCents: 70, attackRatio: 2.2, minGapMs: 90 });
     const ons = new OnsetDetector({ threshold: gate * 1.5, ratio: 2.5, minGapMs: 90 });
     let alive = true;

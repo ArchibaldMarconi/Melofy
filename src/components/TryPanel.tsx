@@ -16,7 +16,7 @@ export function TryPanel({ t, accent, onDone }: { t: LessonTry; accent: string; 
   const prompt = instrument === 'guitare' && t.kind !== 'tap' && t.guitarPrompt ? t.guitarPrompt : t.prompt;
   return (
     <View style={styles.card}>
-      <Text style={[styles.kicker, { color: accent }]}>À toi d'essayer</Text>
+      <Text style={[styles.kicker, { color: accent }]}>{'À toi d\'essayer'}</Text>
       <Text style={type.title}>{prompt}</Text>
       {t.kind === 'tap' ? <TapTry t={t} accent={accent} onDone={onDone} /> : <NotesTry t={t} accent={accent} onDone={onDone} />}
     </View>

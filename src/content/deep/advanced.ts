@@ -13,7 +13,7 @@ const GOLD = '#D9A21B';
 
 // accords (basse au grave, voix au milieu)
 const C = [48, 60, 64, 67], Dm = [50, 60, 65, 69], D7 = [50, 60, 66, 69], G = [43, 59, 62, 67], G7 = [43, 59, 62, 65];
-const E7 = [52, 59, 62, 68], Am = [45, 60, 64, 69], A7 = [45, 61, 64, 67], F = [41, 60, 65, 69];
+const E7 = [52, 59, 62, 68], Am = [45, 60, 64, 69], A7 = [45, 61, 64, 67];
 const Cmaj7 = [48, 59, 64, 67], Cmaj9 = [48, 59, 62, 64, 67], Csus4 = [48, 60, 65, 67], Dm7 = [50, 60, 65, 69];
 
 export const ADVANCED_LESSONS: DeepLesson[] = [

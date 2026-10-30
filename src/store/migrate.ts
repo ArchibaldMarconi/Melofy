@@ -1,6 +1,10 @@
 // Migrations de l'état sauvegardé : une mise à jour de l'appli ne doit jamais faire perdre de progression.
 // Chaque version décrit ce qui change ; `migrate` applique toutes les étapes depuis la version sauvegardée.
 // Règle pour les devs : tout renommage d'identifiant ou de champ = une nouvelle version ici + un test.
+import type { CompetenceState } from '../content/types';
+import { lessonsFromCompetences } from '../engine/cursus';
+import { TEMPLATES } from '../content/templates';
+import { skillOf } from '../content/skills';
 
 export const STORE_VERSION = 7;
 
@@ -8,11 +12,6 @@ export const STORE_VERSION = 7;
 export const RENAMED_TEMPLATES: Record<string, string> = {
   'TH-2-02': 'TH-1-05', // « Tons et demi-tons » passé au palier 1 (gamme de do)
 };
-
-import type { CompetenceState } from '../content/types';
-import { lessonsFromCompetences } from '../engine/cursus';
-import { TEMPLATES } from '../content/templates';
-import { skillOf } from '../content/skills';
 
 type AnyState = Record<string, unknown>;
 

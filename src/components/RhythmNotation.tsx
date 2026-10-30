@@ -32,13 +32,13 @@ export function RhythmNotation({ items, highlight = [], perBar = 4, pickup = 0 }
   let x = 10 + meterW;
   let beat = 0;
   const bars: number[] = [];
-  const glyphs = items.map((s, i) => {
-    const g = <Glyph key={i} s={s} x={x} active={highlight.includes(i)} />;
+  const glyphs: React.ReactElement[] = [];
+  items.forEach((s, i) => {
+    glyphs.push(<Glyph key={i} s={s} x={x} active={highlight.includes(i)} />);
     x += widths[i];
     beat += s === 'blanche' || s === 'syncope' ? 2 : 1;
     if (i === items.length - 1 && !(beat === pickup || (beat > pickup && (beat - pickup) % perBar === 0))) bars.push(x - 6);
     if (beat === pickup || (beat > pickup && (beat - pickup) % perBar === 0)) bars.push(x - 6);
-    return g;
   });
   return (
     <View style={{ alignItems: 'center' }}>

@@ -1,9 +1,8 @@
 // Portée tactile : toucher place une note à la hauteur touchée (ligne ou interligne la plus proche).
 // ▲ ▼ ajustent la dernière note d'un cran (un doigt n'est pas assez précis pour viser un interligne), ⌫ l'efface.
 import React, { useEffect, useState } from 'react';
-import { AccessibilityInfo, Platform } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Ellipse, Line, Text as SvgText } from 'react-native-svg';
+import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
+import Svg, { Ellipse, Line } from 'react-native-svg';
 import { staffStep, stepToMidi } from '../engine/music';
 import { colors } from '../theme';
 import { Button } from './Button';

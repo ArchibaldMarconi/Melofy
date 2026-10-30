@@ -179,7 +179,7 @@ function ThemeChoice() {
         setTheme(v as ThemePref);
         if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
       }} />
-      {theme !== themePref && Platform.OS !== 'web' ? <Text style={type.small}>S'applique au prochain lancement de l'appli.</Text> : null}
+      {theme !== themePref && Platform.OS !== 'web' ? <Text style={type.small}>{'S\'applique au prochain lancement de l\'appli.'}</Text> : null}
     </>
   );
 }

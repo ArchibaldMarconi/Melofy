@@ -1,11 +1,11 @@
 // Grande zone de frappe pour les exercices de rythme.
 // Responder brut (pas Pressable) : l'appui est horodaté immédiatement, même pour des frappes très brèves.
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { colors } from '../theme';
 
 export function TapPad({ onTap, color, label = 'Tape ici', disabled }: { onTap: () => void; color: string; label?: string; disabled?: boolean }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
   const hit = () => {
     if (disabled) return;
     onTap();

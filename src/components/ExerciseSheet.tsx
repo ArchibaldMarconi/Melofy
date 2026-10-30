@@ -51,18 +51,26 @@ export function ExerciseSheet({ template: t, locked, onClose, onLaunch }: Props)
               </View>
             </View>
           ) : null}
-          <Text style={type.small}>
-            {MEDAL_LABEL[medal(comp)]}{comp?.reps ? ` · rappel ${Math.round(currentR(comp, Date.now()) * 100)} % · prochaine révision ${new Date(comp.due).toLocaleDateString('fr-FR')}` : ''}
-          </Text>
+          <Mastery key={t.id} comp={comp} />
           {t.paramSpecs.length ? <Text style={[type.title, { fontSize: 16 }]}>Paramètres</Text> : null}
           {t.paramSpecs.map((ps) => <ParamEditor key={ps.key} spec={ps} value={value(ps.key)} onChange={(v) => set(ps.key, v)} color={color} />)}
           {locked ? <Text style={[type.body, { color: colors.danger }]}>{locked}</Text> : null}
-          {!premium ? <Text style={type.small}>La pratique libre fait partie du premium. Ta séance du jour t'attend dans Workout.</Text> : null}
+          {!premium ? <Text style={type.small}>{'La pratique libre fait partie du premium. Ta séance du jour t\'attend dans Workout.'}</Text> : null}
           <Button color={color} label="Lancer l'exercice" disabled={!!locked || !premium} onPress={() => onLaunch(params)} />
         </ScrollView>
         )}
       </View>
     </Modal>
+  );
+}
+
+/** état de maîtrise ; le rappel est estimé à l'ouverture de la fiche */
+function Mastery({ comp }: { comp: ReturnType<typeof cardOf> }) {
+  const [now] = useState(() => Date.now());
+  return (
+    <Text style={type.small}>
+      {MEDAL_LABEL[medal(comp)]}{comp?.reps ? ` · rappel ${Math.round(currentR(comp, now) * 100)} % · prochaine révision ${new Date(comp.due).toLocaleDateString('fr-FR')}` : ''}
+    </Text>
   );
 }
 

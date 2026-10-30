@@ -159,6 +159,8 @@ export class ExpoAudioEngine implements AudioEngine {
     this.stopMic();
     let stream: InstanceType<typeof AudioModule.AudioStream>;
     try {
+      // AudioModule est un objet natif réexporté sous un nom, pas un espace de noms : import/namespace ne voit pas ses classes
+      // eslint-disable-next-line import/namespace
       stream = new AudioModule.AudioStream({ sampleRate: 44100, channels: 1, encoding: 'float32' });
     } catch { throw new Error('micro_indispo'); }
     const FRAME = opts.frame ?? 2048;

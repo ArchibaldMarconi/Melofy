@@ -109,11 +109,11 @@ export function JamScreen() {
             </View>
           </View>
         ) : null}
-        <Text style={type.small}>En couleur : la {prog.scaleLabel}. En plus fort : les notes de l'accord en cours, à viser sur les temps forts.</Text>
+        <Text style={type.small}>En couleur : la {prog.scaleLabel}{'. En plus fort : les notes de l\'accord en cours, à viser sur les temps forts.'}</Text>
         {instrument === 'guitare'
           ? <Fretboard frets={12} tonic={45} labels="notes" showTonic={false} highlights={hl} onPress={(m) => audio.playNote(m, instrument)} />
           : <Piano startMidi={48} octaves={2} labels="notes" showTonic={false} highlights={hl} onPress={(m) => audio.playNote(m, instrument)} />}
-        <Text style={type.small}>Joue sur ton instrument par-dessus : l'écran sert de carte. Commence par des phrases courtes, et finis-les sur une note forte.</Text>
+        <Text style={type.small}>{'Joue sur ton instrument par-dessus : l\'écran sert de carte. Commence par des phrases courtes, et finis-les sur une note forte.'}</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,5 +1,5 @@
 // Fin d'exercice : compteur d'XP animé, note sur 4 en têtes de notes, confettis si c'est réussi.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import type { Rating } from '../content/types';
 import { colors, type } from '../theme';
@@ -18,18 +18,19 @@ export function useCountUp(target: number, ms = 700) {
   const reduce = useReduceMotion();
   const [v, setV] = useState(0);
   useEffect(() => {
-    if (reduce) { setV(target); return; }
+    if (reduce) return;
     const a = new Animated.Value(0);
     const id = a.addListener(({ value }) => setV(Math.round(value)));
     Animated.timing(a, { toValue: target, duration: ms, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
     return () => a.removeListener(id);
   }, [target, ms, reduce]);
-  return v;
+  // animations réduites : la valeur finale tout de suite
+  return reduce ? target : v;
 }
 
 function Confetti({ palette }: { palette: string[] }) {
   // positions pseudo-aléatoires mais stables (pas de diagonale régulière)
-  const pieces = useRef(Array.from({ length: 22 }, (_, i) => {
+  const [pieces] = useState(() => Array.from({ length: 22 }, (_, i) => {
     const h = Math.sin(i * 12.9898) * 43758.5453;
     const r = h - Math.floor(h);
     const h2 = Math.sin(i * 78.233) * 12345.678;
@@ -38,7 +39,7 @@ function Confetti({ palette }: { palette: string[] }) {
       x: 4 + r * 92, drift: (r2 - 0.5) * 60, dist: 120 + r2 * 160, dur: 900 + r * 700, delay: Math.floor(r2 * 250),
       rot: Math.floor(r * 360), w: r > 0.5 ? 8 : 6, h: r2 > 0.5 ? 12 : 7, color: palette[i % palette.length], fall: new Animated.Value(0),
     };
-  })).current;
+  }));
   useEffect(() => {
     Animated.parallel(pieces.map((p) => Animated.timing(p.fall, { toValue: 1, duration: p.dur, delay: p.delay, easing: Easing.out(Easing.quad), useNativeDriver: ND }))).start();
   }, [pieces]);
@@ -61,7 +62,7 @@ function Confetti({ palette }: { palette: string[] }) {
 
 function RatingNotes({ rating, color }: { rating: Rating; color: string }) {
   const reduce = useReduceMotion();
-  const scales = useRef([0, 1, 2, 3].map(() => new Animated.Value(reduce ? 1 : 0))).current;
+  const [scales] = useState(() => [0, 1, 2, 3].map(() => new Animated.Value(reduce ? 1 : 0)));
   useEffect(() => {
     if (reduce) return;
     Animated.stagger(120, scales.map((s) => Animated.spring(s, { toValue: 1, friction: 4, useNativeDriver: ND }))).start();
@@ -102,7 +103,7 @@ export function Celebration({ xp, rating, precision, color, children }: { xp: nu
 /** Secoue un élément (erreur). */
 export function useShake(trigger: unknown) {
   const reduce = useReduceMotion();
-  const x = useRef(new Animated.Value(0)).current;
+  const [x] = useState(() => new Animated.Value(0));
   useEffect(() => {
     x.setValue(0);
     if (reduce) return;
@@ -114,7 +115,7 @@ export function useShake(trigger: unknown) {
 /** Fait « éclore » un élément (réussite). */
 export function usePop(trigger: unknown) {
   const reduce = useReduceMotion();
-  const s = useRef(new Animated.Value(reduce ? 1 : 0.6)).current;
+  const [s] = useState(() => new Animated.Value(reduce ? 1 : 0.6));
   useEffect(() => {
     if (reduce) { s.setValue(1); return; }
     s.setValue(0.6);

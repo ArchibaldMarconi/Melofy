@@ -16,14 +16,13 @@ import { TunerScreen } from './src/screens/TunerScreen';
 import { FocusScreen } from './src/screens/FocusScreen';
 import { JamScreen } from './src/screens/JamScreen';
 import { StatusBar } from 'expo-status-bar';
-import { isDark } from './src/theme';
+import { colors, isDark } from './src/theme';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { PlacementScreen } from './src/screens/PlacementScreen';
 import { WhatsNew } from './src/components/WhatsNew';
 import { unseenReleases } from './src/version';
 import { useUserStore } from './src/store/useUserStore';
 import type { RootStackParamList } from './src/screens/navigation';
-import { colors } from './src/theme';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -31,7 +30,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 /** outils ouverts depuis « Jouer » : un en-tête simple avec retour */
 const toolHeader = { headerBackTitle: 'Jouer', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerShadowVisible: false } as const;
 
-const icon = (glyph: string) => ({ color }: { color: string }) => <Text style={{ fontSize: 20, color }}>{glyph}</Text>;
+const icon = (glyph: string) => function TabIcon({ color }: { color: string }) { return <Text style={{ fontSize: 20, color }}>{glyph}</Text>; };
 
 function Tabs() {
   return (

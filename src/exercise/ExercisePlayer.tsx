@@ -1,9 +1,9 @@
 // Lecteur d'exercice : la machine à états unique décrite dans la spéc.
 // CONSIGNE → ECOUTE → SAISIE → ANALYSE → (SUCCES | FEEDBACK → ECOUTE | DEMO) → RESULTAT
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { QuizRunner } from './QuizRunner';
-import { figureBeats, figureOnsets } from '../engine/generators';
+import { figureBeats, figureOnsets, generate, mergeParams } from '../engine/generators';
 import { minorReference } from '../engine/chroma';
 import { getTuning } from '../tuning';
 import { availableInputs, INPUT_LABEL, labelsOfExpected } from './helpers';
@@ -16,12 +16,9 @@ import { displayTitle } from '../content/titles';
 import { audio } from '../audio/RNAudioEngine';
 import { soundGroup } from '../audio/soundGroup';
 import { DEFAULT_GATE, useMic } from '../audio/useMic';
-import { centsToTarget } from '../components/PitchMeter';
-import { generate, mergeParams } from '../engine/generators';
-import { beatsToMs, degreeItemsFromNotes, degreeLabel, degreeToMidi, midiDegreeLabel, noteName, pcName, referenceEvents, REFERENCE_TEMPO } from '../engine/music';
-import { RhythmTimeline } from '../components/RhythmTimeline';
+import { centsToTarget, PitchMeter } from '../components/PitchMeter';
+import { degreeItemsFromNotes, degreeToMidi, midiDegreeLabel, pcName, referenceEvents, REFERENCE_TEMPO } from '../engine/music';
 import { usePop, useShake } from '../components/Celebration';
-import { Animated } from 'react-native';
 import { scoreAnswer, scoreTranscription } from '../engine/scoring';
 import { HELPS, XP } from '../engine/xp';
 import { useUserStore, type ResultInfo } from '../store/useUserStore';
@@ -30,8 +27,6 @@ import { Button } from '../components/Button';
 import { DegreePad } from '../components/DegreePad';
 import { Fretboard } from '../components/Fretboard';
 import { Piano } from '../components/Piano';
-import { PitchMeter } from '../components/PitchMeter';
-import { FigureGlyph, RhythmNotation } from '../components/RhythmNotation';
 import { TapPad } from '../components/TapPad';
 import { DisplayView } from '../components/DisplayView';
 import { StaffInput } from '../components/StaffInput';
@@ -618,7 +613,7 @@ export function ExercisePlayer({ template: t, params, seed, inSession, onFinishe
         </View>
       ) : null}
       {v.drone && capturing && (input === 'micro' || (v.answerUI === 'sing' && !fallback)) ? (
-        <Text style={styles.howLine}>Le son de fond s'arrête pendant que tu chantes, pour ne pas tromper le micro. Garde la tonique en tête.</Text>
+        <Text style={styles.howLine}>{'Le son de fond s\'arrête pendant que tu chantes, pour ne pas tromper le micro. Garde la tonique en tête.'}</Text>
       ) : null}
 
       {phase === 'ECOUTE' ? <Text style={[styles.listening, { color }]}>{v.countInBeats ? 'Décompte… prépare-toi' : 'Écoute…'}</Text> : null}

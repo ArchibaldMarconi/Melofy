@@ -27,7 +27,7 @@ export function ScoreStaff({ targets, labels, played, color, octaveAgnostic = tr
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const cur = Math.min(played.length, targets.length - 1);
   // on ne défile que quand la note suivante approche du bord droit : la clé reste visible au début
-  useEffect(() => { scroll.current?.scrollTo({ x: Math.max(0, X0 + cur * DX - 250), animated: true }); }, [cur]);
+  useEffect(() => { scroll.current?.scrollTo({ x: Math.max(0, X0 + cur * DX - 250), animated: true }); }, [X0, cur]);
   const ok = (i: number) => (octaveAgnostic ? mod12(played[i]) === mod12(targets[i]) : Math.round(played[i]) === targets[i]);
   const head = (m: number, cx: number, fill: string, hollow: boolean, key: string) => {
     const sp = keySig ? spellWithKey(m, keySig, clef) : null;

@@ -33,7 +33,7 @@ export function FocusScreen({ route, navigation }: Props) {
     return (
       <SafeAreaView style={styles.center}>
         <Text style={type.title}>{AREA_LABEL[area]}</Text>
-        <Text style={[type.body, { textAlign: 'center' }]}>Ce domaine s'ouvre avec tes premières leçons.</Text>
+        <Text style={[type.body, { textAlign: 'center' }]}>{'Ce domaine s\'ouvre avec tes premières leçons.'}</Text>
         <Button label="Retour" onPress={() => navigation.goBack()} />
       </SafeAreaView>
     );

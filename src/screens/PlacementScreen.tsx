@@ -62,7 +62,7 @@ export function PlacementScreen() {
       <SafeAreaView style={styles.screen}>
         <ScrollView contentContainerStyle={styles.pad}>
           <Text style={type.display}>Test de placement</Text>
-          <Text style={type.body}>Quatre domaines, chacun à part : rythme, oreille, théorie et lecture, technique. Tu sautes ce que tu sais déjà, et tu gardes des défis là où tu es à l'aise.</Text>
+          <Text style={type.body}>{'Quatre domaines, chacun à part : rythme, oreille, théorie et lecture, technique. Tu sautes ce que tu sais déjà, et tu gardes des défis là où tu es à l\'aise.'}</Text>
           {preset ? null : <Text style={type.title}>Où en es-tu, globalement ?</Text>}
           {preset ? null : <View style={styles.choices}>
             {(Object.keys(PROFILES) as PlacementProfile[]).map((id) => {
@@ -75,7 +75,7 @@ export function PlacementScreen() {
               );
             })}
           </View>}
-          <Text style={type.small}>C'est seulement le point de départ : dans chaque domaine, le test monte ou descend selon tes réponses. Une seule tentative par question, pas d'aide ; « Je ne sais pas » est toujours possible.</Text>
+          <Text style={type.small}>{'C\'est seulement le point de départ : dans chaque domaine, le test monte ou descend selon tes réponses. Une seule tentative par question, pas d\'aide ; « Je ne sais pas » est toujours possible.'}</Text>
           <Button label="Commencer le test" disabled={!profile} onPress={start} />
           <Button variant="texte" color={colors.inkSoft} label="Finalement, je commence au début" onPress={() => cancel(false)} />
         </ScrollView>
@@ -120,7 +120,7 @@ export function PlacementScreen() {
             </View>
           );
         })}
-        {anything ? <Text style={type.small}>Les notions validées reviennent vite en révision pour confirmer qu'elles sont solides, au niveau de difficulté le plus élevé.</Text> : <Text style={type.body}>Aucun souci : les premières leçons vont vite quand on progresse bien, et la difficulté s'adapte à toi.</Text>}
+        {anything ? <Text style={type.small}>{'Les notions validées reviennent vite en révision pour confirmer qu\'elles sont solides, au niveau de difficulté le plus élevé.'}</Text> : <Text style={type.body}>{'Aucun souci : les premières leçons vont vite quand on progresse bien, et la difficulté s\'adapte à toi.'}</Text>}
         <Button label="C'est parti" onPress={() => placeOut(all)} />
       </ScrollView>
     </SafeAreaView>

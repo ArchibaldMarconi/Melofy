@@ -6,8 +6,6 @@ const seq = (midis: number[], dur = 1, gap = 0, at = 0): NoteEvent[] => midis.ma
 const together = (midis: number[], start: number, dur: number): NoteEvent[] => midis.map((m) => ({ midi: m, start, dur }));
 const chords = (list: number[][], beats = 1.9, at = 0): NoteEvent[] => list.flatMap((c, i) => together(c, at + i * beats, beats * 0.92));
 const clicks = (n: number, strong: (k: number) => boolean, at = 0): NoteEvent[] => Array.from({ length: n }, (_, k) => ({ midi: strong(k) ? 84 : 77, start: at + k, dur: 0.2 }));
-/** un bourdon (tonique et quinte graves) tenu pendant `dur` temps */
-const drone = (dur: number): NoteEvent[] => [{ midi: 48, start: 0, dur }, { midi: 55, start: 0, dur }];
 
 const VIOLET = '#8A80B0';
 const GOLD = '#D9A21B';
