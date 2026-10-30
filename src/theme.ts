@@ -3,7 +3,7 @@
 // Mode sombre : suit le réglage du téléphone (ou le choix fait dans Profil), appliqué au lancement.
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Domain } from './content/types';
+import type { Domain, WorkoutPart } from './content/types';
 
 export type ThemePref = 'auto' | 'clair' | 'sombre';
 // le choix est lu au démarrage (index.ts) avant le premier rendu, puis posé ici
@@ -46,5 +46,28 @@ export const type = {
   small: { fontSize: 13, lineHeight: 18, color: colors.inkSoft },
 };
 
-export const radius = { note: 999, sheet: 22, key: 6 };
+/**
+ * Arrondis, d'après les HIG d'Apple :
+ * - coins continus (`curve`, la courbe « squircle » d'iOS) plutôt que des quarts de cercle ;
+ * - capsules (rayon = moitié de la hauteur) pour les commandes : pilules, curseurs, choix ;
+ * - concentricité : un élément posé dans une carte prend le rayon de la carte moins la marge qui les sépare,
+ *   pour que les deux courbes partagent le même centre (`control` = `card` − `cardInset`).
+ */
+export const radius = { note: 999, sheet: 22, key: 6, capsule: 999, card: 28, cardInset: 12, control: 16, tile: 20 };
+export const curve = { borderCurve: 'continuous' } as const;
+
+/** mélange de deux couleurs #RRGGBB (t = 0 : a, t = 1 : b), opaque : deux traits qui se croisent ne foncent pas */
+export function mixHex(a: string, b: string, t: number) {
+  const c = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(c(a, i) + (c(b, i) - c(a, i)) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Parties de la séance : des nuances du violet principal, de la plus profonde (échauffement) à la plus claire (créer),
+ * qui suivent l'avancée dans la séance. C'est la forme (PartShape) qui distingue les parties, pas la couleur.
+ * Contraste ≥ 3:1 sur une carte, dans les deux thèmes.
+ */
+export const partColor: Record<WorkoutPart, string> = isDark
+  ? { technique: '#836BEA', revision: '#927BF3', oreille: '#A18BFD', mapping: '#B5A3FF', perroquet: '#C7BAFF', creer: '#D9D0FF' }
+  : { technique: '#492C8D', revision: '#5A37A5', oreille: '#6941BA', mapping: '#7B53CC', perroquet: '#8F6DD4', creer: '#A083DA' };
 export const space = (n: number) => n * 4;

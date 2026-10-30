@@ -1,12 +1,15 @@
-// Curseur à crans façon iOS : une barre arrondie, et une pilule qui glisse à l'intérieur d'un cran à l'autre.
+// Curseur à crans façon iOS : une barre en capsule, et une pilule qui glisse à l'intérieur d'un cran à l'autre.
 // Sans module natif (il marche aussi dans Expo Go et sur le web) : on fait glisser la pilule, ou on touche un cran.
 // VoiceOver et TalkBack l'ajustent d'un cran par balayage vers le haut ou le bas.
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
-import { colors } from '../theme';
+import { Animated, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { useReduceMotion } from '../a11y';
+import { colors, radius } from '../theme';
+import { ND } from './motion';
 
-const ND = Platform.OS !== 'web';
-const BAR = 36;
+// la barre est une capsule concentrique aux coins d'une carte (rayon = celui des commandes posées dedans) ;
+// la pilule l'est à son tour dans la barre
+const BAR = 2 * radius.control;
 const PAD = 3;
 
 export function StepSlider({ label, value, min, max, step, format, onChange, onSliding, ink = colors.ink, soft = colors.inkSoft, pill = colors.card }: {
@@ -22,7 +25,10 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   ink?: string; soft?: string; pill?: string;
 }) {
   const [width, setWidth] = useState(0);
+  const reduce = useReduceMotion();
   const [x] = useState(() => new Animated.Value(0));
+  // la durée affichée rebondit à chaque cran franchi
+  const [pop] = useState(() => new Animated.Value(1));
   const grab = useRef({ x: 0, pageX: 0, last: value, sliding: false });
   const count = Math.round((max - min) / step);
   // une case par cran ; la pilule occupe une case et se déplace de case en case
@@ -30,13 +36,22 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
   const indexOf = (v: number) => Math.round((v - min) / step);
 
-  // la pilule rejoint la valeur (au montage, après un toucher, ou si la durée change ailleurs)
+  // la pilule rejoint sa case en ressort (sans mouvement si les animations sont réduites)
+  const slideTo = (k: number) => (reduce ? x.setValue(k * seg) : Animated.spring(x, { toValue: k * seg, useNativeDriver: ND, speed: 24, bounciness: 4 }).start());
+  // posée sans mouvement au premier affichage ; ensuite elle glisse (après un toucher, ou si la durée change ailleurs)
+  const placed = useRef(false);
   useEffect(() => {
     if (!seg || grab.current.sliding) return;
-    Animated.spring(x, { toValue: indexOf(value) * seg, useNativeDriver: ND, speed: 24, bounciness: 4 }).start();
+    if (!placed.current) { placed.current = true; x.setValue(indexOf(value) * seg); return; }
+    slideTo(indexOf(value));
   }, [value, seg]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (v: number) => { if (v !== grab.current.last) { grab.current.last = v; onChange(v); } };
+  const bump = () => {
+    if (reduce) return;
+    pop.setValue(1.18);
+    Animated.spring(pop, { toValue: 1, useNativeDriver: ND, speed: 30, bounciness: 12 }).start();
+  };
+  const set = (v: number) => { if (v !== grab.current.last) { grab.current.last = v; onChange(v); bump(); } };
   // position du doigt → pilule centrée sous le doigt, sans sortir de la barre
   const follow = (fx: number) => {
     const tx = Math.max(0, Math.min(count * seg, fx - PAD - seg / 2));
@@ -49,7 +64,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
     // un toucher : la pilule saute sur la case touchée
     const k = Math.max(0, Math.min(count, Math.floor((fx - PAD) / (seg || 1))));
     set(min + k * step);
-    Animated.spring(x, { toValue: k * seg, useNativeDriver: ND, speed: 24, bounciness: 4 }).start();
+    slideTo(k);
   };
   const move = (e: GestureResponderEvent) => {
     const dx = e.nativeEvent.pageX - grab.current.pageX;
@@ -62,14 +77,14 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
     grab.current.sliding = false;
     onSliding?.(false);
     // la pilule se pose sur le cran le plus proche
-    Animated.spring(x, { toValue: indexOf(grab.current.last) * seg, useNativeDriver: ND, speed: 24, bounciness: 4 }).start();
+    slideTo(indexOf(grab.current.last));
   };
 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={[styles.label, { color: soft }]}>{label}</Text>
-        <Text style={[styles.value, { color: ink }]}>{format(value)}</Text>
+        <Animated.Text style={[styles.value, { color: ink, transform: [{ scale: pop }] }]}>{format(value)}</Animated.Text>
       </View>
       <View
         style={styles.touch}
@@ -88,7 +103,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={(e) => {
           const v = clamp(value + (e.nativeEvent.actionName === 'increment' ? step : e.nativeEvent.actionName === 'decrement' ? -step : 0));
-          if (v !== value) onChange(v);
+          if (v !== value) { onChange(v); bump(); }
         }}
       >
         {/* rien ne capte le toucher à l'intérieur : locationX reste mesuré depuis le bord de la barre */}
@@ -111,7 +126,7 @@ export function StepSlider({ label, value, min, max, step, format, onChange, onS
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 6 },
   label: { fontSize: 13, fontWeight: '700' },
   value: { fontSize: 16, fontWeight: '900' },
   // zone de toucher de 44 pt, la barre au milieu
