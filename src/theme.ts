@@ -28,7 +28,7 @@ const dark: typeof light = {
   success: '#3BBF83', danger: '#F06A82', warn: '#E6A93A', gold: '#E8B93A', silver: '#AEB8C8', bronze: '#C88A52',
   white: '#FFFFFF', hintBg: '#3A3220', dangerBg: '#3D1E2A', successBg: '#1E4636', keyTonic: '#DCD3FA', keyLabel: '#8E86B5',
   onPrimarySoft: '#1B1638', onPrimaryFaint: '#1B1638', tabInactive: '#8A82B5', medalStart: '#4B4378',
-  onPrimaryTint: '#CDBFFF',
+  onPrimaryTint: '#5C44D0',
   onFill: '#14112A',
 };
 
