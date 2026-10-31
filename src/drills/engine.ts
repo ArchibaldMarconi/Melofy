@@ -145,11 +145,26 @@ export function makeTarget(c: DrillConfig, r: Rng, instrument: 'piano' | 'guitar
 export const ORDER_LABEL: Record<Order, string> = { montant: 'Dans l\'ordre, en montant.', descendant: 'Dans l\'ordre, en descendant.', aller_retour: 'En montant puis en redescendant.', aleatoire: 'Dans l\'ordre indiqué.' };
 export const INTERVAL_SHORT: Record<number, string> = { 1: '2m', 2: '2M', 3: '3m', 4: '3M', 5: '4', 6: 'Triton', 7: '5', 8: '6m', 9: '6M', 10: '7m', 11: '7M', 12: '8' };
 
+/**
+ * La cible telle qu'on la joue au micro : deux cases qui donnent la même note ne se distinguent pas à l'oreille, on
+ * demande donc chaque hauteur (chaque octave) une seule fois. Les notes uniques, intervalles, accords et gammes ne
+ * changent pas.
+ */
+export function forMic(t: DrillTarget): DrillTarget {
+  if (!t.positions) return t;
+  const seen = new Set<number>();
+  const positions = t.positions.filter((p) => (seen.has(p.midi) ? false : (seen.add(p.midi), true)));
+  // au micro, on ne touche pas : on joue
+  if (positions.length === t.positions.length) return { ...t, positions, sub: t.sub.replace(/^Touche-la/, 'Joue-la') };
+  return { ...t, positions, sub: `Joue-la dans chacune de ses ${positions.length} octaves${t.zone ? ' de la zone' : ' (cases 0 à 12)'}, à n'importe quelle case.` };
+}
+
 /** Progression dans une cible : renvoie l'état après une note jouée (classe de hauteur + position éventuelle). */
 export interface Progress { index: number; found: Pos[]; errors: number }
 export function step(t: DrillTarget, p: Progress, played: { midi: number; pos?: Pos }): { p: Progress; result: 'ok' | 'done' | 'wrong' } {
   if (t.positions) {
-    const hit = t.positions.find((x) => (played.pos ? x.string === played.pos.string && x.fret === played.pos.fret : x.midi === played.midi));
+    // au micro (sans position), la hauteur jouée est arrondie au demi-ton
+    const hit = t.positions.find((x) => (played.pos ? x.string === played.pos.string && x.fret === played.pos.fret : x.midi === Math.round(played.midi)));
     if (!hit) return { p: { ...p, errors: p.errors + 1 }, result: 'wrong' };
     if (p.found.some((x) => x.string === hit.string && x.fret === hit.fret && x.midi === hit.midi)) return { p, result: 'ok' };
     const found = [...p.found, hit];

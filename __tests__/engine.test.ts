@@ -902,6 +902,61 @@ describe('pratique : exercices façon Solo', () => {
     for (const m of [60, 64]) { res = D.step(t, p, { midi: m }); expect(res.result).toBe('ok'); p = res.p; }
     res = D.step(t, p, { midi: 79 }); expect(res.result).toBe('done'); expect(res.p.errors).toBe(1);
   });
+  test('au micro : une cible « partout » ou « dans la zone » demande chaque octave une fois', () => {
+    const r = mulberry32(11);
+    for (let k = 0; k < 20; k++) {
+      for (const level of [2, 3]) {
+        const t = D.makeTarget(cfg({ kind: 'notes', noteLevel: level, accidentals: true }), r, 'guitare', STD);
+        const m = D.forMic(t);
+        const midis = m.positions.map((p: { midi: number }) => p.midi);
+        expect(new Set(midis).size).toBe(midis.length);
+        expect(new Set(midis)).toEqual(new Set(t.positions.map((p: { midi: number }) => p.midi)));
+        // chaque octave jouée une fois (au micro, hauteur non arrondie) termine la cible
+        let p = { index: 0, found: [], errors: 0 };
+        let res = { result: 'ok', p };
+        for (const x of midis) { res = D.step(m, p, { midi: x + 0.2 }); p = res.p; }
+        expect(res.result).toBe('done');
+        expect(p.errors).toBe(0);
+      }
+    }
+    // mi sur le manche (cases 0 à 12) : huit cases, mais quatre hauteurs seulement, de mi1 à mi4
+    const e = { title: 'mi', sub: '', sequence: [4], rootPc: 4, positions: D.positionsOf(4, STD, 12) };
+    expect(e.positions).toHaveLength(8);
+    expect(D.forMic(e).positions.map((p: { midi: number }) => p.midi).sort()).toEqual([40, 52, 64, 76]);
+  });
+  // la chaîne complète du micro : son de guitare → analyse des trames → notes → progression dans la cible
+  test.each(['notes', 'intervalles', 'accords', 'gammes'])('détection au micro, de bout en bout : %s', (kind) => {
+    const { renderGuitar } = require('../src/audio/synth');
+    const { FrameAnalyzer } = require('../src/audio/analyzer');
+    const { NoteSegmenter } = require('../src/audio/segmenter');
+    const r = mulberry32(21);
+    const sr = 48000;
+    for (let k = 0; k < 4; k++) {
+      const t = D.forMic(D.makeTarget(cfg({ kind, noteLevel: kind === 'notes' ? 2 : 1, intervals: [3, 4, 7], playRootFirst: true, chordTypes: ['majeur', 'm7'], scales: ['majeure', 'penta_mineure'], order: 'montant' }), r, 'guitare', STD));
+      // ce que joue l'élève : chaque note 0,45 s, puis un court silence
+      const midis: number[] = t.positions ? t.positions.map((p: { midi: number }) => p.midi) : t.sequence.map((pc: number) => 52 + M.mod12(pc - 4));
+      const gap = new Float32Array(Math.round(0.06 * sr));
+      const parts = midis.flatMap((m) => [(renderGuitar(m, sr, 0.45) as Float32Array).map((v) => v * 0.3), gap]);
+      const audioIn = new Float32Array(parts.reduce((a, x) => a + x.length, 0));
+      let o = 0; for (const x of parts) { audioIn.set(x, o); o += x.length; }
+      // mêmes réglages que l'écoute des exercices (useMic, seuil par défaut 0,02), par paquets de 100 ms
+      const gate = 0.02;
+      const seg = new NoteSegmenter({ rmsOn: gate, rmsOff: gate / 2, minDurMs: 70, jumpCents: 70, attackRatio: 2.2, minGapMs: 90 });
+      const an = new FrameAnalyzer(sr, {});
+      let p = { index: 0, found: [], errors: 0 };
+      let result = 'ok';
+      const heard: number[] = [];
+      const onFrame = (f: { freq: number | null; rms: number; tMs: number }) => {
+        const n = seg.push(f);
+        if (n && result !== 'done') { heard.push(Math.round(n.midi)); const s = D.step(t, p, { midi: n.midi }); p = s.p; result = s.result; }
+      };
+      for (let i = 0; i < audioIn.length; i += 4800) an.push(audioIn.subarray(i, i + 4800), 0, onFrame);
+      const last = seg.flush(1e9);
+      if (last && result !== 'done') { heard.push(Math.round(last.midi)); result = D.step(t, p, { midi: last.midi }).result; }
+      expect(heard).toEqual(midis);
+      expect(result).toBe('done');
+    }
+  });
   test('notation : maj7 ou Δ7', () => {
     expect(D.chordLabel('do', 'maj7', 'maj7')).toBe('do maj7');
     expect(D.chordLabel('do', 'maj7', 'delta')).toBe('doΔ7');

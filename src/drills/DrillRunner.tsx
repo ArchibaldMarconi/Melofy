@@ -13,7 +13,7 @@ import { useUserStore } from '../store/useUserStore';
 import { getTuning } from '../tuning';
 import { colors, type } from '../theme';
 import { announce } from '../a11y';
-import { makeTarget, positionsOf, step, type DrillConfig, type DrillTarget, type Pos, type Progress } from './engine';
+import { forMic, makeTarget, positionsOf, step, type DrillConfig, type DrillTarget, type Pos, type Progress } from './engine';
 
 const ADVANCE_MS = { trouve: 500, '2s': 2000, '5s': 5000 } as const;
 const KIND_LABEL = { notes: 'Notes', intervalles: 'Intervalles', accords: 'Accords', gammes: 'Gammes' } as const;
@@ -32,8 +32,10 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   const [stats, setStats] = useState({ targets: 0, errors: 0, notes: 0, times: [] as number[] });
   const targetStart = useRef(0);
   const locked = useRef(false);
-  // positions (niveaux 2 et 3) : uniquement à l'écran, le micro ne distingue pas deux cases qui donnent la même note
-  const useMicInput = config.input === 'micro' && !target.positions;
+  // détection au micro, pour tous les exercices ; une cible « partout » ou « dans la zone » demande alors chaque octave
+  // une fois (le micro ne distingue pas deux cases qui donnent la même note)
+  const useMicInput = config.input === 'micro';
+  const goal = useMicInput ? forMic(target) : target;
 
   // la première cible s'affiche au montage
   useEffect(() => { targetStart.current = Date.now(); }, []);
@@ -53,13 +55,14 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
     setProg({ index: 0, found: [], errors: 0 });
     targetStart.current = Date.now();
     locked.current = false;
-    announce(`${t.title}. ${t.sub}`);
+    const said = useMicInput ? forMic(t) : t;
+    announce(`${said.title}. ${said.sub}`);
   };
 
   const onPlayed = (midi: number, pos?: Pos) => {
     if (locked.current || done) return;
     if (!useMicInput) audio.playNote(midi, instrument);
-    const r = step(target, prog, { midi, pos });
+    const r = step(goal, prog, { midi, pos });
     setStats((s) => ({ ...s, notes: s.notes + 1 }));
     setProg(r.p);
     if (r.result === 'wrong') { setStats((s) => ({ ...s, errors: s.errors + 1 })); setFlash(colors.danger); setTimeout(() => setFlash(null), 300); return; }
@@ -75,9 +78,12 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
   // doigtés : toutes les positions des notes de la cible (option) ; trouvées en vert
   const highlights: Record<number, string> = {};
   if (config.showFingerings) for (const pc of new Set(target.sequence)) for (let m = 36; m <= 88; m++) if (mod12(m) === pc) highlights[m] = `${colors.accent}88`;
+  // trouvées : au micro, toutes les cases de la hauteur jouée passent au vert
+  const foundMidis = new Set(prog.found.map((p) => p.midi));
+  const found = useMicInput && target.positions ? target.positions.filter((p) => foundMidis.has(p.midi)) : prog.found;
   const marks = target.positions && instrument === 'guitare'
     ? [...(config.showFingerings ? target.positions.map((p) => ({ string: p.string, fret: p.fret, color: `${colors.accent}88`, midi: p.midi })) : []),
-       ...prog.found.map((p) => ({ string: p.string, fret: p.fret, color: colors.success, midi: p.midi }))]
+       ...found.map((p) => ({ string: p.string, fret: p.fret, color: colors.success, midi: p.midi }))]
     : undefined;
   if (target.positions && instrument === 'piano') for (const p of prog.found) highlights[p.midi] = colors.success;
   if (target.positions && instrument === 'piano' && target.positions.length === 1) highlights[target.positions[0].midi] = highlights[target.positions[0].midi] ?? `${colors.gold}66`;
@@ -127,9 +133,9 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
       </View>
       <View style={[styles.target, flash ? { borderColor: flash } : null]} accessibilityLiveRegion="polite">
         <Text style={styles.title}>{target.title}</Text>
-        <Text style={type.body}>{target.sub}</Text>
+        <Text style={type.body}>{goal.sub}</Text>
         {target.positions ? (
-          <Text style={styles.count}>{prog.found.length} / {target.positions.length}</Text>
+          <Text style={styles.count}>{prog.found.length} / {goal.positions?.length ?? 0}</Text>
         ) : target.sequence.length > 1 ? (
           <View style={styles.seq}>
             {target.sequence.map((pc, i) => (
@@ -145,7 +151,7 @@ export function DrillRunner({ config, onExit }: { config: DrillConfig; onExit: (
       ) : null}
       {instrument === 'guitare'
         ? <Fretboard frets={fretsNeeded} labels="aucun" showTonic={false} highlights={highlights} marks={marks} zone={target.zone}
-            onPress={(m) => { if (!target.positions) onPlayed(m); }} onPressPos={(pos) => { if (target.positions) onPlayed(pos.midi, pos); }} />
+            onPress={(m) => { if (!target.positions) onPlayed(m); }} onPressPos={(pos) => { if (target.positions) onPlayed(pos.midi, useMicInput ? undefined : pos); }} />
         : <Piano startMidi={48} octaves={3} labels="aucun" showTonic={false} highlights={highlights} onPress={(m) => onPlayed(m)} />}
       <Text style={type.small}>Erreurs sur cette cible : {prog.errors}</Text>
     </ScrollView>

@@ -5,7 +5,7 @@ import type { Instrument, NoteEvent } from '../content/types';
 import { beatsToMs } from '../engine/music';
 import type { AudioEngine, PlayOptions, Playback } from './AudioEngine';
 import type { MicFrame } from './segmenter';
-import { detectPitch, rms } from './yin';
+import { FrameAnalyzer } from './analyzer';
 import { renderDrone, type SynthVoice } from './synth';
 import { Mixer, SR } from './mixer';
 
@@ -157,25 +157,12 @@ export class WebAudioEngine implements AudioEngine {
     proc.connect(mute);
     mute.connect(c.destination);
     // une fenêtre d'analyse de même durée qu'au téléphone (2048 échantillons à 44,1 kHz ≈ 46 ms)
-    const FRAME = Math.round(((opts.frame ?? 2048) / 44100) * sr);
-    let pending = new Float32Array(0);
+    const an = new FrameAnalyzer(sr, { frame: opts.frame, minHz: opts.minHz });
     let origin: number | null = null;
-    let consumed = 0;
     proc.onaudioprocess = (e) => {
       const chunk = e.inputBuffer.getChannelData(0);
       if (origin === null) origin = clock() - (chunk.length / sr) * 1000;
-      const merged = new Float32Array(pending.length + chunk.length);
-      merged.set(pending); merged.set(chunk, pending.length);
-      let off = 0;
-      while (merged.length - off >= FRAME) {
-        const frame = merged.subarray(off, off + FRAME);
-        const level = rms(frame);
-        const freq = level > 0.008 ? detectPitch(frame, sr, { minHz: opts.minHz ?? 60 }) : null;
-        onFrame({ freq, rms: level, tMs: origin + ((consumed + FRAME) / sr) * 1000 });
-        off += FRAME / 2;
-        consumed += FRAME / 2;
-      }
-      pending = merged.slice(off);
+      an.push(chunk, origin, onFrame);
     };
     this.mic = {
       stop: () => {

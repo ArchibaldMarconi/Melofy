@@ -246,7 +246,8 @@ function Catalogue({ onDrill, onSliding }: { onDrill: (c: DrillConfig) => void; 
   const [funcSet, setFuncSet] = useState<number[]>([3, 5, 8]);
   const [funcBelow, setFuncBelow] = useState<string[]>([]);
   // réglages de l'instrument
-  const [d, setD] = useState<Omit<DrillConfig, 'kind'>>({ ...DEFAULT_DRILL, notation: st.settings.chordNotation ?? 'maj7' });
+  // au départ, la réponse suit le réglage de Moi (écran ou micro)
+  const [d, setD] = useState<Omit<DrillConfig, 'kind'>>({ ...DEFAULT_DRILL, notation: st.settings.chordNotation ?? 'maj7', input: st.settings.inputPref === 'micro' ? 'micro' : 'ecran' });
   const set = (patch: Partial<Omit<DrillConfig, 'kind'>>) => setD((x) => ({ ...x, ...patch }));
 
   // séries chronométrées : la durée choisie s'applique aux exercices d'oreille et au perroquet
@@ -254,10 +255,10 @@ function Catalogue({ onDrill, onSliding }: { onDrill: (c: DrillConfig) => void; 
   const toggle = (k: string) => setOpen((o) => (o === k ? null : k));
   const common = (
     <>
+      <Text style={type.small}>Je joue</Text>
+      <Chips options={[['ecran', instrument === 'guitare' ? 'Sur le manche à l\'écran' : 'Sur le clavier à l\'écran'], ['micro', 'Sur mon instrument (détection au micro)']]} value={[d.input]} onChange={([i]) => set({ input: i as DrillConfig['input'] })} multi={false} />
       <Text style={type.small}>Après avoir trouvé</Text>
       <Chips options={[['trouve', 'Suivant tout de suite'], ['2s', 'Pause 2 s'], ['5s', 'Pause 5 s']]} value={[d.advance]} onChange={([a]) => set({ advance: a as DrillConfig['advance'] })} multi={false} />
-      <Text style={type.small}>Je joue</Text>
-      <Chips options={[['ecran', instrument === 'guitare' ? 'Sur le manche à l\'écran' : 'Sur le clavier à l\'écran'], ['micro', 'Sur mon instrument (micro)']]} value={[d.input]} onChange={([i]) => set({ input: i as DrillConfig['input'] })} multi={false} />
       <Chips options={[['oui', 'Afficher les doigtés']]} value={d.showFingerings ? ['oui'] : []} onChange={() => set({ showFingerings: !d.showFingerings })} />
     </>
   );

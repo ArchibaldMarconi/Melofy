@@ -9,7 +9,7 @@ import type { Instrument, NoteEvent } from '../content/types';
 import { beatsToMs } from '../engine/music';
 import type { AudioEngine, PlayOptions, Playback } from './AudioEngine';
 import type { MicFrame } from './segmenter';
-import { detectPitch, rms } from './yin';
+import { FrameAnalyzer } from './analyzer';
 import { encodeWav } from './wav';
 import { renderDrone, type SynthVoice } from './synth';
 import { Mixer, SR } from './mixer';
@@ -171,41 +171,24 @@ export class ExpoAudioEngine implements AudioEngine {
     await this.restoring;
     await this.mode(true);
 
-    let FRAME = 0; // taille d'analyse, fixée à la fréquence réelle (même durée qu'à 44,1 kHz)
-    let pending = new Float32Array(0);
+    let an: FrameAnalyzer | null = null; // créé au premier paquet, à la fréquence réelle
     // horloge de la capture, tenue en comptant les échantillons : l'horodatage envoyé par iOS n'est pas fiable (il
     // avance ~24 fois trop lentement : temps machine lu comme des nanosecondes)
     let origin: number | null = null; // heure (ms) du premier échantillon reçu
     let received = 0; // échantillons reçus depuis `origin`
-    let consumed = 0; // échantillons déjà analysés depuis `origin`
     let lastPacket = clock();
 
     const onBuffer = (b: { data: ArrayBuffer; sampleRate: number; channels: number }) => {
       lastPacket = clock();
       const sr = b.sampleRate;
-      if (!FRAME) FRAME = 2 * Math.round(((opts.frame ?? 2048) / 44100) * sr / 2);
+      if (!an) an = new FrameAnalyzer(sr, { frame: opts.frame, minHz: opts.minHz, gain: INPUT_GAIN });
       const chunk = new Float32Array(b.data);
       const mono = b.channels > 1 ? chunk.filter((_, i) => i % b.channels === 0) : chunk;
       if (origin === null) origin = clock() - (mono.length / sr) * 1000;
       received += mono.length;
       // plus d'un quart de seconde de retard sur le son reçu (JS occupé) : ce paquet est sauté plutôt que d'accumuler
-      if (clock() - (origin + (received / sr) * 1000) > 250) {
-        consumed = received;
-        pending = new Float32Array(0);
-        return;
-      }
-      const merged = new Float32Array(pending.length + mono.length);
-      merged.set(pending); merged.set(mono, pending.length);
-      let off = 0;
-      while (merged.length - off >= FRAME) {
-        const frame = merged.subarray(off, off + FRAME);
-        const level = rms(frame) * INPUT_GAIN;
-        const freq = level > 0.008 ? detectPitch(frame, sr, { minHz: opts.minHz ?? 60 }) : null;
-        onFrame({ freq, rms: level, tMs: origin + ((consumed + FRAME) / sr) * 1000 });
-        off += FRAME / 2; // recouvrement de moitié : une analyse toutes les ~23 ms
-        consumed += FRAME / 2;
-      }
-      pending = merged.slice(off);
+      if (clock() - (origin + (received / sr) * 1000) > 250) { an.skip(mono.length); return; }
+      an.push(mono, origin, onFrame);
     };
 
     const open = async () => {
@@ -233,7 +216,7 @@ export class ExpoAudioEngine implements AudioEngine {
       diag('flux muet : réouverture');
       cur?.close();
       cur = null;
-      origin = null; received = 0; consumed = 0; pending = new Float32Array(0);
+      origin = null; received = 0; an = null;
       open()
         .then((c) => { if (stopped) c.close(); else { cur = c; lastPacket = clock(); } })
         .catch(() => { /* nouvel essai au prochain tour */ })
