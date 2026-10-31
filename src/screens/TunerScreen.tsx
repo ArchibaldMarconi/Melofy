@@ -122,11 +122,12 @@ export function TunerScreen() {
     setDone((d) => d.map((x, k) => (k === i ? false : x)));
     setReading(null);
     hist.current = [];
-    // la note cible, comme référence : le micro se coupe d'abord (sinon iOS la rend muette), puis reprend après
+    // la note cible, comme référence : le micro se coupe d'abord (sinon iOS la rend muette), puis reprend une fois
+    // la note libérée (1,5 s) et la session audio rendue
     audio.stopMic();
     setPaused(true);
     clearTimeout(resume.current);
-    resume.current = setTimeout(() => setPaused(false), 1600);
+    resume.current = setTimeout(() => setPaused(false), 1900);
     audio.playNote(preset.strings[i], instrument === 'piano' ? 'piano' : 'guitare');
   };
 

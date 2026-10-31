@@ -13,9 +13,17 @@ import { detectPitch, rms } from './yin';
 import { encodeWav } from './wav';
 import { renderDrone, type SynthVoice } from './synth';
 import { Mixer, SR } from './mixer';
+/**
+ * Gain d'entrée appliqué au niveau mesuré : iOS capte en mode « mesure », sans contrôle automatique du gain, environ
+ * trois fois plus bas qu'un navigateur (mesuré sur iPhone : note tenue ~0,015-0,06, silence ~0,004). Les seuils du
+ * micro (accordeur, exercices, test du micro) gardent ainsi le même sens partout. La hauteur n'en dépend pas.
+ */
+const INPUT_GAIN = 3;
 /** latence de démarrage d'un lecteur (estimation), ajoutée à l'heure de début annoncée */
 const START_LATENCY_MS = 60;
 const clock = () => (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
+/** journal des incidents du micro, en développement seulement (lu dans le terminal de Metro) */
+const diag = (...a: unknown[]) => { if (__DEV__) console.log('[micro]', ...a); };
 
 let fileSeq = 0;
 async function wavFile(data: Float32Array): Promise<File> {
@@ -162,27 +170,27 @@ export class ExpoAudioEngine implements AudioEngine {
     this.stopMic();
     await this.restoring;
     await this.mode(true);
-    let stream: InstanceType<typeof AudioModule.AudioStream>;
-    try {
-      // AudioModule est un objet natif réexporté sous un nom, pas un espace de noms : import/namespace ne voit pas ses classes
-      // 48 kHz : la fréquence du micro de l'iPhone, sans conversion
-      // eslint-disable-next-line import/namespace
-      stream = new AudioModule.AudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32' });
-    } catch { throw new Error('micro_indispo'); }
+
     let FRAME = 0; // taille d'analyse, fixée à la fréquence réelle (même durée qu'à 44,1 kHz)
     let pending = new Float32Array(0);
-    let origin: number | null = null;
-    let consumed = 0; // échantillons déjà analysés depuis le début
-    const sub = stream.addListener('audioStreamBuffer', (b) => {
+    // horloge de la capture, tenue en comptant les échantillons : l'horodatage envoyé par iOS n'est pas fiable (il
+    // avance ~24 fois trop lentement : temps machine lu comme des nanosecondes)
+    let origin: number | null = null; // heure (ms) du premier échantillon reçu
+    let received = 0; // échantillons reçus depuis `origin`
+    let consumed = 0; // échantillons déjà analysés depuis `origin`
+    let lastPacket = clock();
+
+    const onBuffer = (b: { data: ArrayBuffer; sampleRate: number; channels: number }) => {
+      lastPacket = clock();
       const sr = b.sampleRate;
       if (!FRAME) FRAME = 2 * Math.round(((opts.frame ?? 2048) / 44100) * sr / 2);
       const chunk = new Float32Array(b.data);
       const mono = b.channels > 1 ? chunk.filter((_, i) => i % b.channels === 0) : chunk;
-      if (origin === null) origin = clock() - b.timestamp * 1000;
-      // en retard de plus d'un quart de seconde (JS occupé) : ce paquet est sauté plutôt que d'accumuler le retard
-      const lag = clock() - (origin + b.timestamp * 1000 + (mono.length / sr) * 1000);
-      if (lag > 250) {
-        consumed += pending.length + mono.length;
+      if (origin === null) origin = clock() - (mono.length / sr) * 1000;
+      received += mono.length;
+      // plus d'un quart de seconde de retard sur le son reçu (JS occupé) : ce paquet est sauté plutôt que d'accumuler
+      if (clock() - (origin + (received / sr) * 1000) > 250) {
+        consumed = received;
         pending = new Float32Array(0);
         return;
       }
@@ -191,16 +199,47 @@ export class ExpoAudioEngine implements AudioEngine {
       let off = 0;
       while (merged.length - off >= FRAME) {
         const frame = merged.subarray(off, off + FRAME);
-        const level = rms(frame);
+        const level = rms(frame) * INPUT_GAIN;
         const freq = level > 0.008 ? detectPitch(frame, sr, { minHz: opts.minHz ?? 60 }) : null;
         onFrame({ freq, rms: level, tMs: origin + ((consumed + FRAME) / sr) * 1000 });
         off += FRAME / 2; // recouvrement de moitié : une analyse toutes les ~23 ms
         consumed += FRAME / 2;
       }
       pending = merged.slice(off);
-    });
-    try { await stream.start(); } catch { sub.remove(); stream.release(); throw new Error('micro_indispo'); }
-    this.stream = { stop: () => { sub.remove(); try { stream.stop(); } catch { /* déjà arrêté */ } stream.release(); } };
+    };
+
+    const open = async () => {
+      let stream: InstanceType<typeof AudioModule.AudioStream>;
+      try {
+        // AudioModule est un objet natif réexporté sous un nom, pas un espace de noms : import/namespace ne voit pas ses classes
+        // 48 kHz : la fréquence du micro de l'iPhone, sans conversion
+        // eslint-disable-next-line import/namespace
+        stream = new AudioModule.AudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32' });
+      } catch (e) { diag('création du flux impossible', String(e)); throw new Error('micro_indispo'); }
+      const sub = stream.addListener('audioStreamBuffer', onBuffer);
+      try { await stream.start(); } catch (e) { diag('démarrage du flux impossible', String(e)); sub.remove(); stream.release(); throw new Error('micro_indispo'); }
+      return { close: () => { sub.remove(); try { stream.stop(); } catch { /* déjà arrêté */ } stream.release(); } };
+    };
+
+    let cur: { close: () => void } | null = await open();
+    let stopped = false;
+    let reopening = false;
+    lastPacket = clock();
+    // expo-audio désactive la session audio quand un son se termine ou s'arrête, sans voir que le micro écoute : le flux
+    // se tait alors. S'il ne livre plus rien depuis 0,7 s, on le rouvre (l'horloge repart du premier paquet suivant).
+    const watch = setInterval(() => {
+      if (stopped || reopening || clock() - lastPacket < 700) return;
+      reopening = true;
+      diag('flux muet : réouverture');
+      cur?.close();
+      cur = null;
+      origin = null; received = 0; consumed = 0; pending = new Float32Array(0);
+      open()
+        .then((c) => { if (stopped) c.close(); else { cur = c; lastPacket = clock(); } })
+        .catch(() => { /* nouvel essai au prochain tour */ })
+        .finally(() => { reopening = false; lastPacket = clock(); });
+    }, 300);
+    this.stream = { stop: () => { stopped = true; clearInterval(watch); cur?.close(); cur = null; } };
   }
 
   stopMic() {
