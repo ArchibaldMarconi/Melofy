@@ -9,7 +9,7 @@ import type { Instrument, NoteEvent } from '../content/types';
 import { beatsToMs } from '../engine/music';
 import type { AudioEngine, PlayOptions, Playback } from './AudioEngine';
 import type { MicFrame } from './segmenter';
-import { rms, yin } from './yin';
+import { detectPitch, rms } from './yin';
 import { encodeWav } from './wav';
 import { renderDrone, type SynthVoice } from './synth';
 import { Mixer, SR } from './mixer';
@@ -35,6 +35,8 @@ export class ExpoAudioEngine implements AudioEngine {
   private droneFile: File | null = null;
   private stream: { stop: () => void } | null = null;
   private modeReady = false;
+  /** retour au mode lecture après une écoute, attendu avant de jouer quoi que ce soit */
+  private restoring: Promise<void> = Promise.resolve();
 
   async init() { await this.mode(false); }
   now() { return clock(); }
@@ -51,6 +53,7 @@ export class ExpoAudioEngine implements AudioEngine {
 
   private async playBuffer(data: Float32Array, volume = 1, loop = false): Promise<AudioPlayer> {
     const f = await wavFile(data);
+    await this.restoring;
     this.files.push(f);
     const p = createAudioPlayer({ uri: f.uri });
     p.volume = volume;
@@ -138,6 +141,7 @@ export class ExpoAudioEngine implements AudioEngine {
         if (!f.exists) await f.write(encodeWav(renderDrone(midis, SR)));
         this.droneFile = f;
       }
+      await this.restoring;
       if (this.droneKey !== key) return;
       const p = createAudioPlayer({ uri: this.droneFile.uri });
       p.loop = true;
@@ -155,44 +159,58 @@ export class ExpoAudioEngine implements AudioEngine {
   async startMic(onFrame: (f: MicFrame) => void, opts: { frame?: number; minHz?: number } = {}) {
     const perm = await requestRecordingPermissionsAsync();
     if (!perm.granted) throw new Error('micro_refuse');
-    await this.mode(true);
     this.stopMic();
+    await this.restoring;
+    await this.mode(true);
     let stream: InstanceType<typeof AudioModule.AudioStream>;
     try {
       // AudioModule est un objet natif réexporté sous un nom, pas un espace de noms : import/namespace ne voit pas ses classes
+      // 48 kHz : la fréquence du micro de l'iPhone, sans conversion
       // eslint-disable-next-line import/namespace
-      stream = new AudioModule.AudioStream({ sampleRate: 44100, channels: 1, encoding: 'float32' });
+      stream = new AudioModule.AudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32' });
     } catch { throw new Error('micro_indispo'); }
-    const FRAME = opts.frame ?? 2048;
+    let FRAME = 0; // taille d'analyse, fixée à la fréquence réelle (même durée qu'à 44,1 kHz)
     let pending = new Float32Array(0);
     let origin: number | null = null;
     let consumed = 0; // échantillons déjà analysés depuis le début
     const sub = stream.addListener('audioStreamBuffer', (b) => {
       const sr = b.sampleRate;
+      if (!FRAME) FRAME = 2 * Math.round(((opts.frame ?? 2048) / 44100) * sr / 2);
       const chunk = new Float32Array(b.data);
       const mono = b.channels > 1 ? chunk.filter((_, i) => i % b.channels === 0) : chunk;
       if (origin === null) origin = clock() - b.timestamp * 1000;
+      // en retard de plus d'un quart de seconde (JS occupé) : ce paquet est sauté plutôt que d'accumuler le retard
+      const lag = clock() - (origin + b.timestamp * 1000 + (mono.length / sr) * 1000);
+      if (lag > 250) {
+        consumed += pending.length + mono.length;
+        pending = new Float32Array(0);
+        return;
+      }
       const merged = new Float32Array(pending.length + mono.length);
       merged.set(pending); merged.set(mono, pending.length);
       let off = 0;
       while (merged.length - off >= FRAME) {
         const frame = merged.subarray(off, off + FRAME);
         const level = rms(frame);
-        const freq = level > 0.008 ? yin(frame, sr, 0.15, opts.minHz ?? 60) : null;
+        const freq = level > 0.008 ? detectPitch(frame, sr, { minHz: opts.minHz ?? 60 }) : null;
         onFrame({ freq, rms: level, tMs: origin + ((consumed + FRAME) / sr) * 1000 });
         off += FRAME / 2; // recouvrement de moitié : une analyse toutes les ~23 ms
         consumed += FRAME / 2;
       }
       pending = merged.slice(off);
     });
-    try { await stream.start(); } catch { sub.remove(); throw new Error('micro_indispo'); }
-    this.stream = { stop: () => { sub.remove(); try { stream.stop(); } catch { /* déjà arrêté */ } } };
+    try { await stream.start(); } catch { sub.remove(); stream.release(); throw new Error('micro_indispo'); }
+    this.stream = { stop: () => { sub.remove(); try { stream.stop(); } catch { /* déjà arrêté */ } stream.release(); } };
   }
 
   stopMic() {
     if (!this.stream) return;
     this.stream.stop();
     this.stream = null;
+    // pendant l'écoute, iOS met la session audio en « enregistrement seul », qui coupe tout son, et ne la rend pas
+    // à l'arrêt : on repasse en lecture, et chaque son attend que ce soit fait
+    this.modeReady = false;
+    this.restoring = this.mode(false);
   }
 
   stopAll() {

@@ -64,7 +64,10 @@ export function TunerScreen() {
   const [error, setError] = useState<string | null>(null);
   const hist = useRef<number[]>([]);
   const inTuneSince = useRef<number | null>(null);
-  const muteUntil = useRef(0);
+  // la note de référence : l'écoute est suspendue le temps qu'elle sonne (sur iPhone, le micro ouvert coupe tout son)
+  const [paused, setPaused] = useState(false);
+  const resume = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(resume.current), []);
   const state = useRef({ lock, done, preset });
   // le micro lit le dernier rendu validé
   useLayoutEffect(() => { gateRef.current = gate; state.current = { lock, done, preset }; });
@@ -85,10 +88,10 @@ export function TunerScreen() {
   }
 
   useEffect(() => {
-    if (!focused) return;
+    if (!focused || paused) return;
     let alive = true;
     audio.startMic((f) => {
-      if (!alive || audio.now() < muteUntil.current) return;
+      if (!alive) return;
       if (f.freq === null || f.rms < gateRef.current) { inTuneSince.current = null; return; }
       hist.current = [...hist.current, f.freq].slice(-5);
       const freq = median(hist.current);
@@ -112,15 +115,18 @@ export function TunerScreen() {
       } else inTuneSince.current = null;
     }, { frame: 4096, minHz: 28 }).catch((e: Error) => setError(e.message === 'micro_refuse' ? 'Le micro est refusé. Autorise-le pour Expo Go (ou Melofy) dans Réglages › Confidentialité › Micro.' : micErrorMessage(e.message)));
     return () => { alive = false; audio.stopMic(); };
-  }, [focused]);
+  }, [focused, paused]);
 
   const pick = (i: number) => {
     setLock(i);
     setDone((d) => d.map((x, k) => (k === i ? false : x)));
     setReading(null);
     hist.current = [];
-    // la note cible, comme référence ; le micro l'ignore pendant qu'elle sonne
-    muteUntil.current = audio.now() + 1600;
+    // la note cible, comme référence : le micro se coupe d'abord (sinon iOS la rend muette), puis reprend après
+    audio.stopMic();
+    setPaused(true);
+    clearTimeout(resume.current);
+    resume.current = setTimeout(() => setPaused(false), 1600);
     audio.playNote(preset.strings[i], instrument === 'piano' ? 'piano' : 'guitare');
   };
 

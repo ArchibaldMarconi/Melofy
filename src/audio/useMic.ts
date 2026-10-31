@@ -39,11 +39,17 @@ export function useMic(
     const seg = new NoteSegmenter({ rmsOn: gate, rmsOff: gate / 2, minDurMs: 70, jumpCents: 70, attackRatio: 2.2, minGapMs: 90 });
     const ons = new OnsetDetector({ threshold: gate * 1.5, ratio: 2.5, minGapMs: 90 });
     let alive = true;
+    // l'affichage (note entendue, niveau) suit ~12 fois par seconde : redessiner l'écran à chaque analyse (~40 par
+    // seconde) occupait le JS au point de retarder l'analyse elle-même
+    let shownAt = -1e9;
     audio.startMic((f) => {
       if (!alive) return;
-      const voiced = f.freq !== null && f.rms >= gate;
-      setLiveMidi(voiced ? freqToMidi(f.freq!) : null);
-      setLevel(f.rms);
+      if (f.tMs - shownAt >= 80) {
+        shownAt = f.tMs;
+        const voiced = f.freq !== null && f.rms >= gate;
+        setLiveMidi(voiced ? freqToMidi(f.freq!) : null);
+        setLevel(f.rms);
+      }
       h.current.onFrame?.(f);
       const n = seg.push(f);
       if (n) h.current.onNote?.({ ...n, tMs: n.tMs - originMs });

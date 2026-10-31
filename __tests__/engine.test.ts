@@ -5,7 +5,7 @@ import { align, scoreAnswer, scoreRhythm, scoreSequence, scoreTranscription } fr
 import { isMastered, newCompetence, review } from '../src/engine/fsrs';
 import { computeRating, computeXp, levelFromXp } from '../src/engine/xp';
 import { degreeToMidi, midiToDegree } from '../src/engine/music';
-import { yin } from '../src/audio/yin';
+import { detectPitch, yin } from '../src/audio/yin';
 import { NoteSegmenter } from '../src/audio/segmenter';
 
 describe('musique', () => {
@@ -108,6 +108,43 @@ describe('audio pur', () => {
     const buf = new Float32Array(2048).map((_, i) => Math.sin((2 * Math.PI * 440 * i) / sr));
     expect(yin(buf, sr)!).toBeGreaterThan(437);
     expect(yin(buf, sr)!).toBeLessThan(443);
+  });
+  // analyse du micro : YIN décimé puis affiné, assez léger pour le téléphone ; même justesse que YIN à pleine résolution
+  describe('détection de hauteur (micro)', () => {
+    const { renderGuitar: guitar, renderPiano: piano } = require('../src/audio/synth');
+    const freqOf = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+    const cents = (f: number, m: number) => 1200 * Math.log2(f / freqOf(m));
+    const saw = (f: number, sr: number, n: number) => {
+      const b = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let v = 0; for (let k = 1; k <= 12 && k * f < sr / 2; k++) v += Math.sin((2 * Math.PI * k * f * i) / sr) / k; b[i] = 0.3 * v; }
+      return b;
+    };
+    // réglages de l'accordeur (fenêtre ~93 ms, jusqu'au mi grave d'une basse) et des exercices (~46 ms, dès 60 Hz)
+    const configs = [{ name: 'accordeur', ms: 4096 / 44100, minHz: 28 }, { name: 'exercices', ms: 2048 / 44100, minHz: 60 }];
+    const notes = [28, 33, 40, 45, 52, 57, 60, 64, 69, 76, 81, 86];
+    for (const sr of [44100, 48000]) for (const c of configs) {
+      test(`${c.name} à ${sr} Hz : bonne octave et au cent près, de la basse à l'aigu`, () => {
+        const N = Math.round(c.ms * sr);
+        for (const m of notes) {
+          if (freqOf(m) < c.minHz) continue;
+          for (const src of [saw(freqOf(m), sr, N + 4000), guitar(m, sr, 0.6) as Float32Array]) {
+            const f = detectPitch(src.subarray(3000, 3000 + N), sr, { minHz: c.minHz });
+            expect(f).not.toBeNull();
+            expect(Math.abs(cents(f!, m))).toBeLessThan(1);
+          }
+          // piano : partiels étirés, la référence est YIN à pleine résolution
+          const p = (piano(m, sr, 0.6) as Float32Array).subarray(3000, 3000 + N);
+          expect(Math.abs(cents(detectPitch(p, sr, { minHz: c.minHz })!, m) - cents(yin(p, sr, 0.15, c.minHz)!, m))).toBeLessThan(1);
+        }
+      });
+    }
+    test('un bruit n\'a pas de hauteur', () => {
+      let seed = 7;
+      const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 - 0.5; };
+      let found = 0;
+      for (let k = 0; k < 20; k++) if (detectPitch(new Float32Array(2048).map(() => rnd()), 44100) !== null) found++;
+      expect(found).toBeLessThanOrEqual(1);
+    });
   });
   test('segmentation : deux notes distinctes', () => {
     const s = new NoteSegmenter();

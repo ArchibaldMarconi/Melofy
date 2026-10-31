@@ -5,7 +5,7 @@ import type { Instrument, NoteEvent } from '../content/types';
 import { beatsToMs } from '../engine/music';
 import type { AudioEngine, PlayOptions, Playback } from './AudioEngine';
 import type { MicFrame } from './segmenter';
-import { rms, yin } from './yin';
+import { detectPitch, rms } from './yin';
 import { renderDrone, type SynthVoice } from './synth';
 import { Mixer, SR } from './mixer';
 
@@ -170,7 +170,7 @@ export class WebAudioEngine implements AudioEngine {
       while (merged.length - off >= FRAME) {
         const frame = merged.subarray(off, off + FRAME);
         const level = rms(frame);
-        const freq = level > 0.008 ? yin(frame, sr, 0.15, opts.minHz ?? 60) : null;
+        const freq = level > 0.008 ? detectPitch(frame, sr, { minHz: opts.minHz ?? 60 }) : null;
         onFrame({ freq, rms: level, tMs: origin + ((consumed + FRAME) / sr) * 1000 });
         off += FRAME / 2;
         consumed += FRAME / 2;
