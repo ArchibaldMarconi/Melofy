@@ -1,8 +1,9 @@
 // Onglet « Jouer » : le Jam, l'entraînement automatique (l'appli choisit 5 minutes sur
 // un domaine), puis l'entraînement libre, ouvert sans condition sur tous les domaines (oreille, chant, rythme, lecture,
 // théorie, instrument façon « Solo » de Tom Quayle, technique, improvisation) : on choisit la durée de la série et les
-// éléments. Mêmes règles graphiques que la Séance : chaque famille a sa forme et une nuance de violet, une ligne descend
-// de la forme vers ses entraînements, coins continus, chevrons dessinés, une animation par action.
+// éléments. Les familles sont repliées au départ ; on déplie celle qu'on veut. Mêmes règles graphiques que la Séance :
+// chaque famille a sa forme et une nuance de violet, une ligne descend de la forme vers ses entraînements, coins
+// continus, chevrons dessinés, une animation par action.
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -102,29 +103,42 @@ const GUTTER = 30;
 const STEM_X = 10;
 const BRANCH_H = 37;
 
-/** une famille d'entraînements : sa forme, puis une ligne qui descend et se courbe vers chacun (comme le programme) */
+/**
+ * une famille d'entraînements, repliée au départ : sa forme et son nom ; dépliée, une ligne descend de la forme et se
+ * courbe vers chaque entraînement (comme le programme). L'en-tête se tasse sous le doigt, les entraînements apparaissent
+ * en fondu ; le chevron est fixe, vers le bas ou vers le haut.
+ */
 function Group({ family, title, children }: { family: Family; title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const { p, onPressIn, onPressOut } = usePress();
+  const settle = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.02 * p.get() }] }));
   const items = React.Children.toArray(children);
   // la ligne : la nuance de la famille, adoucie vers le fond de la page
   const line = mixHex(FAMILY[family].color, colors.paper, 0.45);
   return (
     <View>
-      <View style={styles.groupHead}>
+      <AnimatedPressable onPress={() => setOpen((o) => !o)} onPressIn={onPressIn} onPressOut={onPressOut} accessibilityRole="button"
+        accessibilityLabel={title} accessibilityState={{ expanded: open }} style={[styles.groupHead, open && styles.groupHeadOpen, settle]}>
         <View style={styles.gutter}>
-          <View style={[styles.stem, { top: '50%', backgroundColor: line }]} />
+          {open ? <View style={[styles.stem, { top: '50%', backgroundColor: line }]} /> : null}
           <View style={styles.shape}><FamilyShape family={family} /></View>
         </View>
-        <Text style={styles.groupTitle} accessibilityRole="header">{title}</Text>
-      </View>
-      {items.map((child, i) => (
-        <View key={i} style={[styles.groupRow, i < items.length - 1 && { paddingBottom: 10 }]}>
-          <View style={styles.gutter}>
-            {i < items.length - 1 ? <View style={[styles.stem, { top: 0, backgroundColor: line }]} /> : null}
-            <View style={[styles.branch, { borderColor: line }]} />
-          </View>
-          <View style={{ flex: 1 }}>{child}</View>
-        </View>
-      ))}
+        <Text style={styles.groupTitle}>{title}</Text>
+        <Chevron dir={open ? 'up' : 'down'} />
+      </AnimatedPressable>
+      {open ? (
+        <Animated.View entering={FadeIn.duration(220)}>
+          {items.map((child, i) => (
+            <View key={i} style={[styles.groupRow, i < items.length - 1 && { paddingBottom: 10 }]}>
+              <View style={styles.gutter}>
+                {i < items.length - 1 ? <View style={[styles.stem, { top: 0, backgroundColor: line }]} /> : null}
+                <View style={[styles.branch, { borderColor: line }]} />
+              </View>
+              <View style={{ flex: 1 }}>{child}</View>
+            </View>
+          ))}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -464,8 +478,10 @@ const styles = StyleSheet.create({
   play: { fontSize: 18, fontWeight: '900', color: colors.accent },
   // carte de la durée : le curseur (capsule de rayon `control`) y est concentrique
   duration: { backgroundColor: colors.primary, borderRadius: radius.control + 20, ...curve, padding: 20 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', paddingTop: 8, paddingBottom: 10 },
-  groupTitle: { fontSize: 17, fontWeight: '900', color: colors.ink },
+  groupHead: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingRight: 4 },
+  // dépliée : un peu d'air avant le premier entraînement (la ligne le traverse)
+  groupHeadOpen: { paddingBottom: 8 },
+  groupTitle: { flex: 1, fontSize: 17, fontWeight: '900', color: colors.ink },
   groupRow: { flexDirection: 'row' },
   gutter: { width: GUTTER, alignSelf: 'stretch', justifyContent: 'center' },
   shape: { marginLeft: STEM_X - 9 },
