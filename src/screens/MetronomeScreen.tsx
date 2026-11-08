@@ -181,8 +181,12 @@ export function MetronomeScreen() {
   const shownTempo = running ? pos.tempo : config.tempo;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      {/* page à part entière (onglet) : même barre de titre que les autres pages */}
+      <View style={styles.titleBar}>
+        <Text style={type.display} accessibilityRole="header">Métronome</Text>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
         <View style={styles.top}>
           <View style={styles.tempoBox}>
             <TextInput value={tempoText} onChangeText={setTempoText} onBlur={commitTempo} onSubmitEditing={commitTempo} keyboardType="number-pad" returnKeyType="done"
@@ -305,7 +309,8 @@ export function MetronomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  pad: { padding: 20, gap: 10, paddingBottom: 48 },
+  titleBar: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  pad: { padding: 20, paddingTop: 8, gap: 10, paddingBottom: 48 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tempoBox: { flexDirection: 'row', alignItems: 'baseline', gap: 4, flexShrink: 0 },
   tempoInput: { fontSize: 40, fontWeight: '900', color: colors.ink, width: 96, borderBottomWidth: 2, borderColor: colors.line, paddingVertical: 2 },

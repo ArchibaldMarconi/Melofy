@@ -1,4 +1,4 @@
-// Onglet « Jouer » : les outils (métronome, accordeur, jam), l'entraînement automatique (l'appli choisit 5 minutes sur
+// Onglet « Jouer » : le Jam, l'entraînement automatique (l'appli choisit 5 minutes sur
 // un domaine), puis l'entraînement libre, ouvert sans condition sur tous les domaines (oreille, chant, rythme, lecture,
 // théorie, instrument façon « Solo » de Tom Quayle, technique, improvisation) : on choisit la durée de la série et les
 // éléments. Mêmes règles graphiques que la Séance : chaque famille a sa forme et une nuance de violet, une ligne descend
@@ -27,7 +27,7 @@ import { AREAS, AREA_LABEL, type Area } from '../content/skills';
 import { TEMPLATES } from '../content/templates';
 import { focusPool } from '../engine/focus';
 
-/** outils dans l'onglet (Métronome, Accordeur, Jam) ; séries et entraînements par-dessus les onglets */
+/** le Jam dans l'onglet ; séries et entraînements par-dessus les onglets */
 type Nav = CompositeNavigationProp<NativeStackNavigationProp<PlayStackParamList>, NativeStackNavigationProp<RootStackParamList>>;
 
 /** pastilles à sélection multiple ou unique */
@@ -156,9 +156,8 @@ export function AtelierScreen() {
         <Text style={type.display} accessibilityRole="header">Jouer</Text>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pad} scrollEnabled={!sliding}>
+        {/* le métronome et l'accordeur ont leur propre onglet ; le Jam reste ici */}
         <View style={styles.tools}>
-          <Tool glyph="♩" title="Métronome" onPress={() => nav.navigate('Metronome')} />
-          <Tool glyph="⋔" title="Accordeur" onPress={() => nav.navigate('Accordeur')} />
           <Tool glyph="♫" title="Jam" onPress={() => nav.navigate('Jam')} />
         </View>
 

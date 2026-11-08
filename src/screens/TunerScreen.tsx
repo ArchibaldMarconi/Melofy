@@ -137,8 +137,12 @@ export function TunerScreen() {
   const big = chromatic ? (reading ? nearest(reading.freq).name.replace(/-?\d+$/, '') : '–') : stringLabel(preset.strings[lock]);
 
   return (
-    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={styles.pad}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      {/* page à part entière (onglet) : même barre de titre que les autres pages */}
+      <View style={styles.titleBar}>
+        <Text style={type.display} accessibilityRole="header">Accordeur</Text>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pad}>
         <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel={`Accordage : ${preset.label}. Changer`} style={styles.select}>
           <View style={{ flex: 1 }}>
             <Text style={type.small}>{preset.group}</Text>
@@ -205,7 +209,8 @@ export function TunerScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  pad: { padding: 20, gap: 16, paddingBottom: 48 },
+  titleBar: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  pad: { padding: 20, paddingTop: 8, gap: 16, paddingBottom: 48 },
   select: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: colors.line },
   chev: { fontSize: 22, color: colors.inkSoft, fontWeight: '900' },
   spheres: { flexDirection: 'row', justifyContent: 'center', gap: 8, flexWrap: 'wrap' },

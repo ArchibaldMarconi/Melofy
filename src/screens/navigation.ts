@@ -10,11 +10,9 @@ export type RootStackParamList = {
   Practice: { templateId: string; params?: Params; seed: number; minutes?: number; /** série technique : + N BPM après chaque réussite */ tempoStep?: number } | { boss: string };
 };
 
-/** onglet Jouer : l'atelier et ses outils, ouverts sous la barre d'onglets */
+/** onglet Jouer : l'atelier et le Jam, ouvert sous la barre d'onglets (métronome et accordeur ont leur onglet) */
 export type PlayStackParamList = {
   Atelier: undefined;
-  Metronome: undefined;
-  Accordeur: undefined;
   /** accompagnement en boucle pour improviser */
   Jam: undefined;
 };

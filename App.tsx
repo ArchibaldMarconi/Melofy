@@ -29,31 +29,36 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const PlayStack = createNativeStackNavigator<PlayStackParamList>();
 
-/** outils ouverts depuis « Jouer » : un en-tête simple avec retour */
+/** écrans ouverts depuis « Jouer » (le Jam) : un en-tête simple avec retour */
 const toolHeader = { headerBackTitle: 'Jouer', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerShadowVisible: false } as const;
 
-/** onglet Jouer : les outils s'ouvrent dans l'onglet, la barre reste visible pour changer de page à tout moment */
+/** onglet Jouer : le Jam s'ouvre dans l'onglet, la barre reste visible pour changer de page à tout moment */
 function PlayTab() {
   return (
     <PlayStack.Navigator>
       <PlayStack.Screen name="Atelier" component={AtelierScreen} options={{ headerShown: false, title: 'Jouer' }} />
-      <PlayStack.Screen name="Metronome" component={MetronomeScreen} options={{ ...toolHeader, title: 'Métronome' }} />
-      <PlayStack.Screen name="Accordeur" component={TunerScreen} options={{ ...toolHeader, title: 'Accordeur' }} />
       <PlayStack.Screen name="Jam" component={JamScreen} options={{ ...toolHeader, title: 'Jam' }} />
     </PlayStack.Navigator>
   );
 }
 
 const icon = (glyph: string) => function TabIcon({ color }: { color: string }) { return <Text style={{ fontSize: 20, color }}>{glyph}</Text>; };
+/** libellé d'onglet sur une ligne : sur un petit iPhone, il rétrécit à peine plutôt que d'être coupé (« Métron… ») */
+const label = (text: string) => function TabLabel({ color }: { color: string }) {
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ fontSize: 10, letterSpacing: -0.2, color, textAlign: 'center' }}>{text}</Text>;
+};
 
 function Tabs() {
   return (
-    // quatre destinations, un verbe chacune (et, plus tard, un objet de la maison) ; la séance du jour ouvre l'appli
-    <Tab.Navigator initialRouteName="Workout" screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.ink, tabBarInactiveTintColor: colors.tabInactive, tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line }, tabBarLabelStyle: { fontSize: 11 } }}>
-      <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarIcon: icon('▶'), tabBarLabel: 'Séance', title: 'Séance' }} />
-      <Tab.Screen name="Arbre" component={TreeScreen} options={{ tabBarIcon: icon('♪'), tabBarLabel: 'Leçons', title: 'Leçons' }} />
-      <Tab.Screen name="Pratique" component={PlayTab} options={{ tabBarIcon: icon('◎'), tabBarLabel: 'Jouer', title: 'Jouer' }} />
-      <Tab.Screen name="Profil" component={ProfileScreen} options={{ tabBarIcon: icon('●'), tabBarLabel: 'Moi', title: 'Moi' }} />
+    // la séance du jour ouvre l'appli ; le métronome et l'accordeur ont chacun leur page, à portée d'un toucher.
+    // Six onglets : libellés en 10 pt, pour que « Métronome » et « Accordeur » tiennent en entier
+    <Tab.Navigator initialRouteName="Workout" screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.ink, tabBarInactiveTintColor: colors.tabInactive, tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line } }}>
+      <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarIcon: icon('▶'), tabBarLabel: label('Séance'), title: 'Séance' }} />
+      <Tab.Screen name="Arbre" component={TreeScreen} options={{ tabBarIcon: icon('♪'), tabBarLabel: label('Leçons'), title: 'Leçons' }} />
+      <Tab.Screen name="Pratique" component={PlayTab} options={{ tabBarIcon: icon('◎'), tabBarLabel: label('Jouer'), title: 'Jouer' }} />
+      <Tab.Screen name="Metronome" component={MetronomeScreen} options={{ tabBarIcon: icon('♩'), tabBarLabel: label('Métronome'), title: 'Métronome' }} />
+      <Tab.Screen name="Accordeur" component={TunerScreen} options={{ tabBarIcon: icon('⋔'), tabBarLabel: label('Accordeur'), title: 'Accordeur' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ tabBarIcon: icon('●'), tabBarLabel: label('Moi'), title: 'Moi' }} />
     </Tab.Navigator>
   );
 }
