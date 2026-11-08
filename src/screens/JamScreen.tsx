@@ -25,39 +25,60 @@ export function JamScreen() {
   const [tempo, setTempo] = useState(STYLES[0].tempo);
   const [more, setMore] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // la boucle se calcule avant de jouer (un moment, en JS) : le bouton attend, il ne relance pas
+  const [loading, setLoading] = useState(false);
   const [bar, setBar] = useState(-1);
   const [error, setError] = useState<string | null>(null);
   const player = useRef<{ stop: () => void } | null>(null);
   const t0 = useRef(0);
+  // chaque lancement a son numéro : arrêter, relancer ou quitter l'écran rend les lancements en cours caducs, et un son
+  // qui arrive quand même est coupé aussitôt (sinon les boucles s'empilaient, et l'une continuait écran fermé)
+  const gen = useRef(0);
 
   const prog = PROGRESSIONS.find((p) => p.id === progId)!;
   const style = STYLES.find((s) => s.id === styleId)!;
   const keyPc = JAM_KEYS.find((k) => k.id === key)!.pc;
   const track = useMemo(() => buildJam(prog, style, keyPc, tempo, instrument), [prog, style, keyPc, tempo, instrument]);
 
-  const stop = () => { player.current?.stop(); player.current = null; setPlaying(false); setBar(-1); };
+  const stop = () => {
+    gen.current++;
+    player.current?.stop();
+    player.current = null;
+    setPlaying(false); setLoading(false); setBar(-1);
+  };
   const play = async (tr: typeof track) => {
     stop();
+    const my = gen.current;
+    const stale = () => my !== gen.current;
+    setLoading(true);
     setError(null);
     try {
       await audio.init();
+      // laisse l'écran afficher « Préparation… » avant le calcul, qui occupe le JS un moment
+      await new Promise((r) => setTimeout(r, 0));
+      if (stale()) return;
       const data = audio.renderLayers(tr.layers, tr.tempo, tr.beats);
+      if (stale()) return;
       t0.current = audio.now() + 120;
-      player.current = await audio.playRaw(data, true, 0.9);
+      const p = await audio.playRaw(data, true, 0.9);
+      if (stale()) { p.stop(); return; }
+      player.current = p;
       setPlaying(true);
     } catch {
-      setError('Le son n\'a pas pu démarrer : vérifie le volume et le mode silencieux, puis réessaie.');
+      if (!stale()) setError('Le son n\'a pas pu démarrer : vérifie le volume et le mode silencieux, puis réessaie.');
+    } finally {
+      if (!stale()) setLoading(false);
     }
   };
   const start = () => play(track);
-  // un réglage changé pendant la lecture : la boucle repart avec le nouveau
+  // un réglage changé pendant la lecture (ou sa préparation) : la boucle repart avec le nouveau
   const change = (next: { progId?: string; styleId?: string; key?: string; tempo?: number }) => {
     const n = { progId, styleId, key, tempo, ...next };
     setProgId(n.progId); setStyleId(n.styleId); setKey(n.key); setTempo(n.tempo);
     const p = PROGRESSIONS.find((x) => x.id === n.progId)!;
     const s = STYLES.find((x) => x.id === n.styleId)!;
     const pc = JAM_KEYS.find((k) => k.id === n.key)!.pc;
-    if (playing && (p !== prog || s !== style || pc !== keyPc || n.tempo !== tempo)) play(buildJam(p, s, pc, n.tempo, instrument));
+    if ((playing || loading) && (p !== prog || s !== style || pc !== keyPc || n.tempo !== tempo)) play(buildJam(p, s, pc, n.tempo, instrument));
   };
   // quitter l'écran coupe la boucle
   useEffect(() => { if (!focused) return; return () => stop(); }, [focused]);
@@ -89,7 +110,7 @@ export function JamScreen() {
             </View>
           ))}
         </View>
-        <Button label={playing ? '■  Stop' : '▶  Jouer'} color={playing ? colors.danger : colors.primary} onPress={playing ? stop : start} />
+        <Button label={loading ? 'Préparation…' : playing ? '■  Stop' : '▶  Jouer'} color={playing ? colors.danger : colors.primary} onPress={playing ? stop : start} disabled={loading} />
         {error ? <Text style={[type.body, { color: colors.danger }]}>{error}</Text> : null}
         <Pressable onPress={() => setMore((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: more }} style={styles.disclosure}>
           <Text style={styles.disclosureText}>{more ? 'Moins de réglages ▴' : `${style.label} · ${prog.label} · ${KEY_LABEL[key]} · ${tempo} BPM ▾`}</Text>
